@@ -1,0 +1,144 @@
+.stock-popup {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #fff;
+    padding: 20px;
+    border-radius: 5px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.3);
+    z-index: 9999;
+}
+
+.popup-content {
+    min-width: 300px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+}
+
+.form-group input,
+.form-group textarea {
+    width: 100%;
+}
+
+.button-group {
+    text-align: right;
+    margin-top: 20px;
+}
+
+.button-group button {
+    margin-left: 10px;
+}
+
+.stock-history {
+    padding: 10px;
+    background: #f9f9f9;
+}
+
+.inline-form-row td {
+    padding: 10px;
+    background: #f9f9f9;
+}
+
+.inline-form {
+    display: flex;
+    gap: 15px;
+    align-items: flex-start;
+    background: #f9f9f9;
+    padding: 15px;
+    border-radius: 4px;
+    margin: 10px 0;
+}
+
+.inline-form .form-group {
+    flex: 1;
+}
+
+.inline-form label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: bold;
+    color: #444;
+}
+
+.inline-form label:first-child {
+    color: #0073aa;
+    margin-bottom: 12px;
+}
+
+.inline-form input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.inline-form .button-group {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+}
+
+.inline-form .button {
+    margin-top: 24px;
+}
+
+.quantity-input {
+    width: 100px;
+}
+
+.notes-input {
+    flex: 1;
+}
+
+.stock-history table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.stock-history th,
+.stock-history td {
+    padding: 8px;
+    border: 1px solid #ddd;
+    text-align: left;
+}
+
+.stock-history th {
+    background: #f5f5f5;
+    font-weight: bold;
+}
+
+.stock-history tr:nth-child(even) {
+    background: #fafafa;
+}
+
+.history-filter {
+    margin-bottom: 15px;
+    padding: 10px;
+    background: #f5f5f5;
+    border-radius: 4px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.history-filter input[type="date"] {
+    padding: 5px;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+}
+
+.history-filter .button {
+    padding: 5px 10px;
+}
+
+.history-filter .reset-filter {
+    margin-left: auto;
+} 
