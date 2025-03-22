@@ -268,4 +268,15 @@
 .history-pagination .button:hover {
     background-color: #005177;
     color: white;
+}
+
+.delete-product-btn {
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    margin-left: 5px;
+}
+
+.delete-product-btn:hover {
+    background-color: #c82333;
 } 

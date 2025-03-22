@@ -276,6 +276,7 @@ function dokan_vendor_stock_tracking() {
             <button class="show-history-btn button" data-product-id="' . $product_id . '">Geçmiş</button>
             <button class="set-stock-btn button" data-product-id="' . $product_id . '">Stok Gir</button>
             <button class="delete-stock-btn button" data-product-id="' . $product_id . '">Stok Sil</button>
+            <button class="delete-product-btn button" data-product-id="' . $product_id . '">Ürünü Sil</button>
         </td>';
         $output .= '</tr>';
         
@@ -805,3 +806,87 @@ function delete_stock_ajax() {
     ));
 }
 add_action('wp_ajax_delete_stock', 'delete_stock_ajax');
+
+// Ürün silme işlemi için AJAX handler
+function delete_product_ajax() {
+    try {
+        error_log('DELETE PRODUCT - Başlangıç');
+        error_log('POST verisi: ' . print_r($_POST, true));
+
+        if (!check_ajax_referer('dokan-stock-security', 'security', false)) {
+            error_log('DELETE PRODUCT - Nonce hatası');
+            wp_send_json_error('Güvenlik doğrulaması başarısız');
+            return;
+        }
+
+        if (!is_user_logged_in()) {
+            error_log('DELETE PRODUCT - Kullanıcı giriş yapmamış');
+            wp_send_json_error('Oturum açmanız gerekiyor');
+            return;
+        }
+
+        $current_user = wp_get_current_user();
+        if (!in_array('seller', $current_user->roles) && 
+            !in_array('vendor', $current_user->roles) && 
+            !in_array('wcfm_vendor', $current_user->roles) && 
+            !in_array('dc_vendor', $current_user->roles)) {
+            error_log('DELETE PRODUCT - Yetkisiz kullanıcı');
+            wp_send_json_error('Bu işlem için yetkiniz yok');
+            return;
+        }
+
+        if (!isset($_POST['product_id'])) {
+            error_log('DELETE PRODUCT - Ürün ID eksik');
+            wp_send_json_error('Geçersiz istek: Ürün ID eksik');
+            return;
+        }
+
+        $product_id = intval($_POST['product_id']);
+        
+        // Ürün nesnesini al
+        $product = wc_get_product($product_id);
+        
+        if (!$product) {
+            error_log('DELETE PRODUCT - Ürün bulunamadı: ' . $product_id);
+            wp_send_json_error('Ürün bulunamadı');
+            return;
+        }
+
+        // Ürünün yazarını kontrol et
+        $post = get_post($product_id);
+        if ($post->post_author != get_current_user_id()) {
+            error_log('DELETE PRODUCT - Yetkisiz silme girişimi. Ürün ID: ' . $product_id);
+            wp_send_json_error('Bu ürünü silme yetkiniz yok');
+            return;
+        }
+
+        // Önce stok hareketlerini sil
+        global $wpdb;
+        $movements_table = $wpdb->prefix . 'dokan_stock_movements';
+        $wpdb->delete(
+            $movements_table,
+            array('product_id' => $product_id),
+            array('%d')
+        );
+
+        // Sonra ürünü sil
+        $result = wp_delete_post($product_id, true);
+
+        if (!$result) {
+            error_log('DELETE PRODUCT - Silme hatası. Ürün ID: ' . $product_id);
+            wp_send_json_error('Ürün silinirken bir hata oluştu');
+            return;
+        }
+
+        error_log('DELETE PRODUCT - Başarılı. Ürün ID: ' . $product_id);
+        wp_send_json_success(array(
+            'message' => 'Ürün başarıyla silindi',
+            'product_id' => $product_id
+        ));
+
+    } catch (Exception $e) {
+        error_log('DELETE PRODUCT - Hata: ' . $e->getMessage());
+        wp_send_json_error('İşlem sırasında bir hata oluştu: ' . $e->getMessage());
+    }
+}
+add_action('wp_ajax_delete_product', 'delete_product_ajax');

@@ -613,4 +613,50 @@ jQuery(document).ready(function($) {
         
         $row.next().find('.cancel-form').on('click', removeInlineForm);
     });
+
+    // Ürün silme butonu için event listener
+    $('.delete-product-btn').on('click', function() {
+        var $btn = $(this);
+        var $row = $btn.closest('tr');
+        var productId = $btn.data('product-id');
+        var productName = $row.find('td:nth-child(2)').text();
+        
+        if (confirm('Bu ürünü silmek istediğinizden emin misiniz?\n\nÜrün: ' + productName + '\n\nBu işlem geri alınamaz!')) {
+            $btn.prop('disabled', true).text('Siliniyor...');
+            
+            $.ajax({
+                url: dokanStock.ajaxurl,
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    action: 'delete_product',
+                    product_id: productId,
+                    security: dokanStock.security
+                },
+                success: function(response) {
+                    if (response.success) {
+                        alert('Ürün başarıyla silindi');
+                        // Önce geçmiş satırını sil
+                        $('#history_' + productId).fadeOut(400, function() {
+                            $(this).remove();
+                        });
+                        // Sonra ürün satırını sil
+                        $row.fadeOut(400, function() {
+                            $(this).remove();
+                        });
+                    } else {
+                        alert('Hata: ' + (response.data || 'Bilinmeyen bir hata oluştu'));
+                        $btn.prop('disabled', false).text('Ürünü Sil');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('AJAX hatası:', error);
+                    console.error('Durum:', status);
+                    console.error('Yanıt:', xhr.responseText);
+                    alert('Bir hata oluştu. Lütfen tekrar deneyin.');
+                    $btn.prop('disabled', false).text('Ürünü Sil');
+                }
+            });
+        }
+    });
 });
