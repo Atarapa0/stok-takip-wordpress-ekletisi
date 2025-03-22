@@ -430,3 +430,962 @@
     max-width: 900px;
     max-height: 95vh;
 }
+
+/* Kritik stok bildirimi için stiller */
+.critical-stock-notification {
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+    padding: 15px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+}
+
+.critical-stock-notification h4 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 18px;
+}
+
+.critical-stock-row {
+    background-color: rgba(255, 0, 0, 0.1);
+}
+
+/* Raporlama için stiller */
+.stock-report {
+    background-color: #fff;
+    border-radius: 5px;
+    padding: 20px;
+}
+
+.stock-report h3 {
+    margin-top: 0;
+    font-size: 22px;
+    color: #333;
+}
+
+.report-summary {
+    background-color: #f5f5f5;
+    padding: 15px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+}
+
+.report-summary h4 {
+    margin-top: 0;
+    font-size: 18px;
+}
+
+.report-summary ul {
+    list-style-type: none;
+    padding-left: 0;
+}
+
+.report-summary li {
+    margin-bottom: 8px;
+}
+
+.most-active-products, .all-movements {
+    margin-bottom: 30px;
+}
+
+.most-active-products h4, .all-movements h4 {
+    font-size: 18px;
+    margin-bottom: 15px;
+}
+
+.report-actions {
+    margin-top: 30px;
+    padding-top: 15px;
+    border-top: 1px solid #ddd;
+    text-align: right;
+}
+
+/* Satış analizi için stiller */
+.sales-analysis-report {
+    background-color: #fff;
+    border-radius: 5px;
+    padding: 20px;
+}
+
+.sales-analysis-report h3 {
+    margin-top: 0;
+    font-size: 22px;
+    color: #333;
+}
+
+.period-selector {
+    margin-bottom: 20px;
+    padding: 10px;
+    background-color: #f5f5f5;
+    border-radius: 5px;
+}
+
+.sales-chart-container {
+    margin: 30px 0;
+    height: 300px;
+}
+
+.top-selling-products, .least-selling-products {
+    margin-bottom: 30px;
+}
+
+.top-selling-products h4, .least-selling-products h4 {
+    font-size: 18px;
+    margin-bottom: 15px;
+}
+
+.analysis-actions {
+    margin-top: 30px;
+    padding-top: 15px;
+    border-top: 1px solid #ddd;
+    text-align: right;
+}
+
+/* Panel başlığı için stiller */
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+/* Dokan stok paneline genel stillemeler */
+.dokan-stock-tracking {
+    margin-top: 30px;
+}
+
+.dokan-stock-tracking table.stock-table {
+    margin-bottom: 30px;
+}
+
+.dokan-stock-tracking .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+/* Genel tasarım iyileştirmeleri */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.dokan-stock-tracking {
+    background-color: #f7f7f7;
+    border-radius: 8px;
+    padding: 25px;
+    margin-top: 30px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+}
+
+/* Panel başlığı için yeni stiller */
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    padding: 0 10px 15px;
+    border-bottom: 2px solid #e8e8e8;
+}
+
+.panel-header h3 {
+    margin: 0;
+    font-size: 24px;
+    color: #2c3e50;
+    font-weight: 600;
+}
+
+/* Aksiyon butonlarını güzelleştirelim */
+.action-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.action-buttons .button {
+    padding: 8px 15px;
+    border-radius: 4px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    border: none;
+    text-shadow: none;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.add-new-product {
+    background-color: #3498db !important;
+    color: white !important;
+}
+
+.add-new-product:hover {
+    background-color: #2980b9 !important;
+}
+
+.check-critical-stocks {
+    background-color: #e74c3c !important;
+    color: white !important;
+}
+
+.check-critical-stocks:hover {
+    background-color: #c0392b !important;
+}
+
+.generate-stock-report {
+    background-color: #2ecc71 !important;
+    color: white !important;
+}
+
+.generate-stock-report:hover {
+    background-color: #27ae60 !important;
+}
+
+.sales-analysis {
+    background-color: #9b59b6 !important;
+    color: white !important;
+}
+
+.sales-analysis:hover {
+    background-color: #8e44ad !important;
+}
+
+/* Tablo tasarımını güzelleştirme */
+.stock-table {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    margin-bottom: 30px !important;
+}
+
+.stock-table th {
+    background-color: #f5f5f5;
+    padding: 15px 10px;
+    text-align: left;
+    font-weight: 600;
+    color: #333;
+    border-bottom: 2px solid #e0e0e0;
+}
+
+.stock-table td {
+    padding: 12px 10px;
+    border-bottom: 1px solid #e8e8e8;
+    vertical-align: middle;
+}
+
+.stock-table tr:hover {
+    background-color: #f9f9f9;
+}
+
+.stock-table tr:last-child td {
+    border-bottom: none;
+}
+
+/* İşlem butonlarının tasarımını iyileştirme */
+.stock-table .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.stock-table .button {
+    padding: 6px 10px;
+    font-size: 13px;
+    margin: 2px;
+    border-radius: 3px;
+    transition: all 0.2s ease;
+    border: none;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.edit-product-btn {
+    background-color: #3498db;
+    color: white;
+}
+
+.edit-product-btn:hover {
+    background-color: #2980b9;
+}
+
+.stock-add-btn {
+    background-color: #2ecc71;
+    color: white;
+}
+
+.stock-add-btn:hover {
+    background-color: #27ae60;
+}
+
+.manual-sale-btn {
+    background-color: #f39c12;
+    color: white;
+}
+
+.manual-sale-btn:hover {
+    background-color: #d35400;
+}
+
+.show-history-btn {
+    background-color: #95a5a6;
+    color: white;
+}
+
+.show-history-btn:hover {
+    background-color: #7f8c8d;
+}
+
+.set-stock-btn {
+    background-color: #1abc9c;
+    color: white;
+}
+
+.set-stock-btn:hover {
+    background-color: #16a085;
+}
+
+.delete-stock-btn {
+    background-color: #e74c3c;
+    color: white;
+}
+
+.delete-stock-btn:hover {
+    background-color: #c0392b;
+}
+
+.delete-product-btn {
+    background-color: #c0392b;
+    color: white;
+}
+
+.delete-product-btn:hover {
+    background-color: #922b21;
+}
+
+/* Kritik stok uyarıları için daha iyi stiller */
+.critical-stock-notification {
+    background-color: #fff9f9;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 30px;
+    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.1);
+    animation: fadeIn 0.5s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.critical-stock-notification h4 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 20px;
+    color: #e74c3c;
+    display: flex;
+    align-items: center;
+}
+
+.critical-stock-notification h4:before {
+    content: "⚠️";
+    margin-right: 10px;
+    font-size: 24px;
+}
+
+.critical-stock-notification table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    border-radius: 5px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.critical-stock-notification th {
+    background-color: #f8d7da;
+    padding: 12px;
+    text-align: left;
+    font-weight: 600;
+}
+
+.critical-stock-row {
+    background-color: #fff5f5;
+}
+
+.critical-stock-row td {
+    padding: 10px 12px;
+    border-top: 1px solid #f5c6cb;
+}
+
+/* Stok Raporu İyileştirmeleri */
+.stock-report {
+    background-color: #fff;
+    border-radius: 8px;
+    padding: 25px;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
+}
+
+.stock-report h3 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    font-size: 24px;
+    color: #2c3e50;
+    border-bottom: 2px solid #e0e0e0;
+    padding-bottom: 15px;
+}
+
+.report-summary {
+    background-color: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 30px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e0e0e0;
+}
+
+.report-summary h4 {
+    margin-top: 0;
+    font-size: 20px;
+    color: #2980b9;
+    margin-bottom: 15px;
+}
+
+.report-summary ul {
+    list-style-type: none;
+    padding-left: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.report-summary li {
+    margin-bottom: 10px;
+    padding: 10px;
+    background-color: white;
+    border-radius: 5px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    font-weight: 500;
+}
+
+.most-active-products, .all-movements {
+    margin-bottom: 40px;
+    background-color: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e0e0e0;
+}
+
+.most-active-products h4, .all-movements h4 {
+    font-size: 20px;
+    margin-top: 0;
+    margin-bottom: 20px;
+    color: #2980b9;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.report-actions {
+    margin-top: 30px;
+    padding-top: 15px;
+    border-top: 1px solid #ddd;
+    text-align: right;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.export-excel {
+    background-color: #27ae60 !important;
+    color: white !important;
+    font-weight: bold !important;
+    padding: 8px 16px !important;
+}
+
+.close-report {
+    background-color: #7f8c8d !important;
+    color: white !important;
+    font-weight: bold !important;
+    padding: 8px 16px !important;
+}
+
+/* Satış Analizi İyileştirmeleri */
+.sales-analysis-report {
+    background-color: #fff;
+    border-radius: 8px;
+    padding: 25px;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
+}
+
+.sales-analysis-report h3 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    font-size: 24px;
+    color: #2c3e50;
+    border-bottom: 2px solid #e0e0e0;
+    padding-bottom: 15px;
+}
+
+.period-selector {
+    margin-bottom: 30px;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e0e0e0;
+}
+
+.period-selector label {
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 0;
+}
+
+.period-selector select {
+    padding: 8px 12px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    min-width: 150px;
+}
+
+.update-analysis {
+    background-color: #3498db !important;
+    color: white !important;
+    font-weight: bold !important;
+    padding: 8px 16px !important;
+}
+
+.sales-chart-container {
+    margin: 30px 0;
+    height: 350px;
+    padding: 20px;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e0e0e0;
+}
+
+.top-selling-products, .least-selling-products {
+    margin-bottom: 40px;
+    background-color: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e0e0e0;
+}
+
+.top-selling-products h4 {
+    color: #27ae60;
+    font-size: 20px;
+    margin-top: 0;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.least-selling-products h4 {
+    color: #e74c3c;
+    font-size: 20px;
+    margin-top: 0;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.analysis-actions {
+    margin-top: 30px;
+    padding-top: 15px;
+    border-top: 1px solid #ddd;
+    text-align: right;
+}
+
+.close-analysis {
+    background-color: #7f8c8d !important;
+    color: white !important;
+    font-weight: bold !important;
+    padding: 8px 16px !important;
+}
+
+/* Form Elementleri İyileştirmeleri */
+input[type="text"], 
+input[type="number"], 
+input[type="date"],
+select, 
+textarea {
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 14px;
+    transition: border 0.3s ease;
+    background-color: #f9f9f9;
+}
+
+input[type="text"]:focus, 
+input[type="number"]:focus, 
+input[type="date"]:focus,
+select:focus, 
+textarea:focus {
+    border-color: #3498db;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+/* Mobil Uyumluluk */
+@media (max-width: 768px) {
+    .panel-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+    }
+    
+    .action-buttons {
+        flex-wrap: wrap;
+        width: 100%;
+    }
+    
+    .action-buttons .button {
+        flex: 1;
+        text-align: center;
+        white-space: nowrap;
+    }
+    
+    .stock-table {
+        display: block;
+        overflow-x: auto;
+    }
+    
+    .stock-table .actions {
+        flex-direction: column;
+    }
+    
+    .stock-table .button {
+        width: 100%;
+        margin: 2px 0;
+    }
+    
+    .report-summary ul {
+        grid-template-columns: 1fr;
+    }
+    
+    .period-selector {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
+
+/* Popup İyileştirmeleri */
+.stock-popup {
+    backdrop-filter: blur(5px);
+}
+
+.popup-content {
+    background: white;
+    padding: 25px;
+    border-radius: 8px;
+    max-width: 800px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+    z-index: 999998;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.popup-content h3 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    font-size: 22px;
+    color: #2c3e50;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #f1f1f1;
+}
+
+/* İnline Form İyileştirmeleri */
+.inline-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    margin: 15px 0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e0e0e0;
+}
+
+.inline-form .form-group {
+    flex: 1 1 200px;
+}
+
+.inline-form label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #333;
+}
+
+.inline-form label:first-child {
+    color: #3498db;
+    margin-bottom: 15px;
+}
+
+.inline-form input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: white;
+}
+
+.inline-form .button-group {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+    flex: 0 0 auto;
+}
+
+/* Geçmiş Görüntüleme İyileştirmeleri */
+.stock-history {
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    margin-top: 10px;
+    border: 1px solid #e0e0e0;
+}
+
+.stock-history h4 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    font-size: 18px;
+    color: #2c3e50;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.history-filter {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #f1f1f1;
+    border-radius: 5px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+}
+
+.history-filter input[type="date"] {
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.filter-history, .reset-filter {
+    background-color: #3498db !important;
+    color: white !important;
+    border: none !important;
+}
+
+.filter-history:hover, .reset-filter:hover {
+    background-color: #2980b9 !important;
+}
+
+/* Kritik Stok Popup Stil Ayarları */
+.critical-stock-popup-content {
+    max-width: 800px !important;
+    width: 90% !important;
+    border-top: 5px solid #e74c3c !important;
+    animation: criticalPulse 2s ease infinite;
+}
+
+@keyframes criticalPulse {
+    0% { box-shadow: 0 10px 25px rgba(231, 76, 60, 0.15); }
+    50% { box-shadow: 0 10px 25px rgba(231, 76, 60, 0.3); }
+    100% { box-shadow: 0 10px 25px rgba(231, 76, 60, 0.15); }
+}
+
+.popup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #f1f1f1;
+}
+
+.popup-header h3 {
+    margin: 0;
+    color: #e74c3c;
+    font-size: 24px;
+    display: flex;
+    align-items: center;
+}
+
+.popup-header h3:before {
+    content: "⚠️";
+    margin-right: 10px;
+}
+
+.close-popup-btn {
+    background: none;
+    border: none;
+    font-size: 28px;
+    color: #7f8c8d;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+}
+
+.close-popup-btn:hover {
+    background-color: #f1f1f1;
+    color: #e74c3c;
+}
+
+.popup-body {
+    margin-bottom: 20px;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.popup-footer {
+    text-align: right;
+    padding-top: 15px;
+    border-top: 1px solid #f1f1f1;
+}
+
+.close-critical-popup {
+    background-color: #e74c3c !important;
+    color: white !important;
+    font-weight: 600 !important;
+    padding: 8px 20px !important;
+    border-radius: 4px !important;
+    border: none !important;
+    transition: all 0.2s ease !important;
+}
+
+.close-critical-popup:hover {
+    background-color: #c0392b !important;
+}
+
+.empty-critical-stocks {
+    text-align: center;
+    padding: 40px 20px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+}
+
+.success-icon {
+    width: 60px;
+    height: 60px;
+    background-color: #2ecc71;
+    border-radius: 50%;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+    font-size: 36px;
+    font-weight: bold;
+}
+
+.empty-critical-stocks p {
+    font-size: 18px;
+    color: #2c3e50;
+    margin: 0;
+}
+
+/* Kritik stok tablosu için gelişmiş stiller */
+.critical-stock-notification table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    border: 1px solid #f5c6cb;
+    border-radius: 6px;
+    overflow: hidden;
+    margin-top: 15px;
+}
+
+.critical-stock-notification th {
+    background-color: #f8d7da;
+    color: #721c24;
+    padding: 12px 15px;
+    font-weight: 600;
+    text-align: left;
+    border-bottom: 2px solid #f5c6cb;
+}
+
+.critical-stock-notification td {
+    padding: 12px 15px;
+    border-bottom: 1px solid #f5c6cb;
+}
+
+.critical-stock-notification tr:last-child td {
+    border-bottom: none;
+}
+
+.critical-stock-notification tr:hover td {
+    background-color: #fff0f0;
+}
+
+/* Kritik seviye göstergesi */
+.critical-level-indicator {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-weight: 600;
+    text-align: center;
+    min-width: 60px;
+}
+
+.critical-level-severe {
+    background-color: #e74c3c;
+    color: white;
+}
+
+.critical-level-warning {
+    background-color: #f39c12;
+    color: white;
+}
+
+.critical-level-attention {
+    background-color: #f1c40f;
+    color: #7d6608;
+}
+
+.set-critical-level-btn {
+    background-color: #9b59b6 !important;
+    color: white !important;
+    padding: 8px 12px !important;
+    font-weight: 500 !important;
+    border: none !important;
+    border-radius: 3px !important;
+    transition: all 0.2s ease !important;
+    text-align: center !important;
+    display: inline-block !important;
+    width: auto !important;
+}
+
+.set-critical-level-btn:hover {
+    background-color: #8e44ad !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15) !important;
+}

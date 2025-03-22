@@ -241,10 +241,10 @@ jQuery(document).ready(function($) {
                         var newEndDate = $(this).closest('.history-filter').find('.history-date-end').val();
                         
                         if (!newStartDate || !newEndDate) {
-                            alert('Lütfen başlangıç ve bitiş tarihlerini seçin');
-                            return;
-                        }
-                        
+            alert('Lütfen başlangıç ve bitiş tarihlerini seçin');
+            return;
+        }
+        
                         updateHistory(productId, newStartDate, newEndDate, 1);
                     });
 
@@ -963,4 +963,316 @@ jQuery(document).ready(function($) {
             $('#edit-product-popup').remove();
         }
     });
+
+    // Kritik stok kontrolü butonu
+    $('.check-critical-stocks').on('click', function() {
+        $.ajax({
+            url: dokanStock.ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'get_critical_stocks',
+                security: dokanStock.security
+            },
+            beforeSend: function() {
+                // Yükleniyor göstergesi
+                $('body').append('<div id="critical-loading" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9998;"><div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-size: 18px;">Kritik stok kontrolü yapılıyor...</div></div>');
+            },
+            success: function(response) {
+                $('#critical-loading').remove();
+                
+                if (response.success) {
+                    try {
+                        // Eski gösterimi kaldır
+                        $('#critical-stock-container').hide();
+                        
+                        // Popup içeriğini oluştur
+                        var popupContent = '';
+                        
+                        if (response.data && response.data !== '') {
+                            popupContent = response.data;
+                        } else {
+                            popupContent = '<div class="empty-critical-stocks"><div class="success-icon">✓</div><p>Kritik stok seviyesinde ürün bulunmamaktadır.</p></div>';
+                        }
+                        
+                        // Popup'ı oluştur ve göster
+                        $('body').append(
+                            '<div id="critical-stock-popup" class="stock-popup">' +
+                            '<div class="popup-content critical-stock-popup-content">' +
+                            '<div class="popup-header">' +
+                            '<h3>Kritik Stok Kontrolü</h3>' +
+                            '<button class="close-popup-btn">×</button>' +
+                            '</div>' +
+                            '<div class="popup-body">' + popupContent + '</div>' +
+                            '<div class="popup-footer">' +
+                            '<button class="button close-critical-popup">Kapat</button>' +
+                            '</div>' +
+                            '</div>' +
+                            '</div>'
+                        );
+                        
+                        // Sesli bildirim ekleme (kritik ürün varsa)
+                        if (response.data && response.data !== '' && !response.data.includes('bulunmamaktadır')) {
+                            playAlertSound();
+                        }
+                    } catch (error) {
+                        console.error('Kritik stok popup oluşturma hatası:', error);
+                        alert('Kritik stok kontrolü gösterilirken bir hata oluştu. Lütfen sayfayı yenileyip tekrar deneyin.');
+                    }
+                } else {
+                    alert('Hata: ' + response.data);
+                }
+            },
+            error: function(xhr, status, error) {
+                $('#critical-loading').remove();
+                console.error('AJAX hatası:', xhr.responseText);
+                alert('Kritik stok kontrolü sırasında bir hata oluştu!');
+            }
+        });
+    });
+
+    // Kritik stok popup'ını kapatma
+    $(document).on('click', '.close-critical-popup, .close-popup-btn', function() {
+        $('#critical-stock-popup').remove();
+    });
+
+    // Popup dışına tıklayınca kapatma
+    $(document).on('click', '#critical-stock-popup', function(e) {
+        if (e.target === this) {
+            $('#critical-stock-popup').remove();
+        }
+    });
+
+    // Sesli uyarı için fonksiyon
+    function playAlertSound() {
+        // Sesli uyarı oluştur
+        var audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJbA2/LN3PXv1MWrYk1Tsfj/0aWWT2The6tzcm9jXVlybWtiVWh+g317loV0eJCRe11FNkBHR01VaX2HmZSEbFdeTmRwdXR0gZOepJaSmK+ppaOkqrOyubPlx6pydHp6fJCk;');
+        audio.volume = 0.5; // Ses seviyesi
+        audio.play().catch(function(e) {
+            // Tarayıcı otomatik ses oynatmaya izin vermiyorsa sessizce devam et
+            console.log('Sesli uyarı oynatılamadı:', e);
+        });
+    }
+
+    // Kritik stok seviyesi ayarlama butonuna tıklama
+    $(document).on('click', '.set-critical-level-btn', function() {
+        var productId = $(this).data('product-id');
+        var currentLevel = $(this).data('critical-level');
+        var $button = $(this);
+        
+        var newLevel = prompt('Kritik stok seviyesini giriniz:', currentLevel);
+        
+        if (newLevel !== null && !isNaN(newLevel) && parseInt(newLevel) >= 0) {
+            $.ajax({
+                url: dokanStock.ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'update_critical_stock',
+                    product_id: productId,
+                    critical_level: parseInt(newLevel),
+                    security: dokanStock.security
+                },
+                success: function(response) {
+                    if (response.success) {
+                        alert(response.data.message);
+                        
+                        try {
+                            // Butonun data özelliğini güncelle
+                            $button.data('critical-level', response.data.critical_level);
+                            
+                            // Tablodaki kritik seviye değerini güncelle
+                            var $row = $button.closest('tr');
+                            
+                            if ($row.length) {
+                                // Kritik seviye sütunu - varsayılan olarak 3. sütun (sıfır tabanlı index 2)
+                                $row.find('td:eq(2)').text(response.data.critical_level);
+                                
+                                // Kritik seviyeyi güncellemenin ardından, durum sütununu da güncelle
+                                // Mevcut stok değerini alalım
+                                var currentStock = parseInt($row.find('td:eq(1)').text());
+                                var newCriticalLevel = parseInt(response.data.critical_level);
+                                
+                                // Yüzdelik hesaplama
+                                var stockPercentage = (currentStock / newCriticalLevel) * 100;
+                                
+                                // Yeni durum sınıfı ve metnini belirle
+                                var criticalClass = '';
+                                var criticalText = '';
+                                
+                                if (stockPercentage <= 25) {
+                                    criticalClass = 'critical-level-severe';
+                                    criticalText = 'Acil';
+                                } else if (stockPercentage <= 50) {
+                                    criticalClass = 'critical-level-warning';
+                                    criticalText = 'Uyarı';
+                                } else {
+                                    criticalClass = 'critical-level-attention';
+                                    criticalText = 'Dikkat';
+                                }
+                                
+                                // Durum sütunundaki göstergeyi güncelle - varsayılan olarak 4. sütun (sıfır tabanlı index 3)
+                                var $statusCell = $row.find('td:eq(3)');
+                                var $indicator = $statusCell.find('.critical-level-indicator');
+                                
+                                if ($indicator.length) {
+                                    // Sınıfları temizle ve yeni sınıfı ekle
+                                    $indicator.removeClass('critical-level-severe critical-level-warning critical-level-attention')
+                                            .addClass(criticalClass)
+                                            .text(criticalText);
+                                }
+                            }
+                        } catch (error) {
+                            console.error('Kritik stok seviyesi güncelleme hatası:', error);
+                        }
+                    } else {
+                        alert('Hata: ' + response.data);
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('AJAX hatası:', xhr.responseText);
+                    alert('Kritik stok seviyesi güncellenirken bir hata oluştu!');
+                }
+            });
+        } else if (newLevel !== null) {
+            alert('Lütfen geçerli bir sayı giriniz.');
+        }
+    });
+
+    // Stok raporu oluşturma butonu
+    $('.generate-stock-report').on('click', function() {
+        var startDate = prompt('Başlangıç tarihi (YYYY-MM-DD):', getFormattedDate(30));
+        var endDate = prompt('Bitiş tarihi (YYYY-MM-DD):', getFormattedDate(0));
+        
+        if (!startDate || !endDate) {
+            return;
+        }
+        
+        $.ajax({
+            url: dokanStock.ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'generate_stock_report',
+                start_date: startDate,
+                end_date: endDate,
+                security: dokanStock.security
+            },
+            beforeSend: function() {
+                // Yükleniyor göstergesi eklenebilir
+                $('body').append('<div id="report-loading" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9998;"><div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-size: 18px;">Rapor yükleniyor...</div></div>');
+            },
+            success: function(response) {
+                $('#report-loading').remove();
+                if (response.success) {
+                    // Raporu göster
+                    $('body').append('<div id="report-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9998;"></div>');
+                    $('body').append('<div id="report-container" style="position: fixed; top: 5%; left: 5%; width: 90%; height: 90%; background: white; overflow: auto; padding: 20px; z-index: 9999;">' + response.data + '</div>');
+                } else {
+                    alert('Hata: ' + response.data);
+                }
+            }
+        });
+    });
+
+    // Excel'e aktar butonu için event handler
+    $(document).on('click', '.export-excel', function() {
+        var startDate = $(this).data('start');
+        var endDate = $(this).data('end');
+        
+        $.ajax({
+            url: dokanStock.ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'export_stock_report',
+                start_date: startDate,
+                end_date: endDate,
+                security: dokanStock.security
+            },
+            success: function(response) {
+                if (response.success) {
+                    // CSV dosyasını indir
+                    var link = document.createElement('a');
+                    link.href = 'data:text/csv;base64,' + response.data.content;
+                    link.download = response.data.filename;
+                    link.click();
+                } else {
+                    alert('Hata: ' + response.data);
+                }
+            }
+        });
+    });
+
+    // Rapor kapatma butonu
+    $(document).on('click', '.close-report', function() {
+        $('#report-container, #report-overlay').remove();
+    });
+
+    // Satış analizi butonu
+    $('.sales-analysis').on('click', function() {
+        $.ajax({
+            url: dokanStock.ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'sales_analysis',
+                period: 'monthly', // varsayılan periyot
+                security: dokanStock.security
+            },
+            beforeSend: function() {
+                // Yükleniyor göstergesi
+                $('body').append('<div id="analysis-loading" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9998;"><div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-size: 18px;">Analiz yükleniyor...</div></div>');
+            },
+            success: function(response) {
+                $('#analysis-loading').remove();
+                if (response.success) {
+                    // Analizi göster
+                    $('body').append('<div id="analysis-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9998;"></div>');
+                    $('body').append('<div id="analysis-container" style="position: fixed; top: 5%; left: 5%; width: 90%; height: 90%; background: white; overflow: auto; padding: 20px; z-index: 9999;">' + response.data + '</div>');
+                } else {
+                    alert('Hata: ' + response.data);
+                }
+            }
+        });
+    });
+
+    // Analiz periyodu güncelleme
+    $(document).on('click', '.update-analysis', function() {
+        var period = $('#analysis-period').val();
+        
+        $.ajax({
+            url: dokanStock.ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'sales_analysis',
+                period: period,
+                security: dokanStock.security
+            },
+            beforeSend: function() {
+                // İçeriği temizle ve yükleniyor göster
+                $('#analysis-container').html('<div style="text-align: center; padding: 50px;">Analiz yükleniyor...</div>');
+            },
+            success: function(response) {
+                if (response.success) {
+                    // Analizi güncelle
+                    $('#analysis-container').html(response.data);
+                } else {
+                    alert('Hata: ' + response.data);
+                }
+            }
+        });
+    });
+
+    // Analiz kapatma butonu
+    $(document).on('click', '.close-analysis', function() {
+        $('#analysis-container, #analysis-overlay').remove();
+    });
+
+    // Yardımcı fonksiyon - X gün önceki tarihi YYYY-MM-DD formatında döndürür
+    function getFormattedDate(daysAgo) {
+        var date = new Date();
+        date.setDate(date.getDate() - daysAgo);
+        
+        var year = date.getFullYear();
+        var month = (date.getMonth() + 1).toString().padStart(2, '0');
+        var day = date.getDate().toString().padStart(2, '0');
+        
+        return year + '-' + month + '-' + day;
+    }
 });
