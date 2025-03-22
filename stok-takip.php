@@ -6,42 +6,11 @@ Version: 1.0
 Author: Furkan Erdoğan
 */
 
-// Sohbet Geçmişi:
+
 /*
-Yapılan İşlemler:
-1. Veritabanı tablosu oluşturuldu (wpe4_dokan_stock_movements)
-   - Sütunlar: id, vendor_id, product_id, quantity, movement_type, movement_date, notes, current_stock
-
-2. Stok Ekleme Özelliği:
-   - Satıcılar mevcut stoka ekleme yapabilir
-   - Her ekleme işlemi tarih ve notla kaydedilir
-   - Stok miktarı otomatik güncellenir
-
-3. Manuel Satış Özelliği:
-   - Satıcılar manuel satış kaydı girebilir
-   - Stoktan otomatik düşüm yapılır
-   - Satış tarihi ve notu kaydedilir
-
-4. Geçmiş Görüntüleme:
-   - Tüm stok hareketleri tarih sırasıyla görüntülenir
-   - Tarih aralığına göre filtreleme yapılabilir
-   - Her hareket için:
-     * İşlem tarihi
-     * İşlem tipi (Stok Ekleme/Manuel Satış)
-     * Miktar
-     * İşlem sonrası stok durumu
-     * Not bilgisi
-
-6. Güvenlik:
-   - Sadece satıcı rolüne sahip kullanıcılar erişebilir
-   - Her işlem için yetki kontrolü yapılır
-   - AJAX istekleri güvenlik tokeni ile korunur
-
-7. Arayüz İyileştirmeleri:
-   - Kullanıcı dostu form tasarımı
-   - Anlık geri bildirimler
-   - Hata mesajları
-   - Responsive tasarım
+Kritik stok seviyeleri için uyarılar
+Stok hareketleri raporu
+En çok ve en az satılan ürünler analizi
 */
 
 // Doğrudan erişimi engelle
@@ -163,7 +132,7 @@ function render_dokan_stock_admin_page() {
         echo '<th>Satıcı</th>';
         echo '<th>Mağaza Adı</th>';
         echo '<th>Consumer Key</th>';
-        echo '<th>Consumer Secret</th>';
+        echo '<th>Consumer Secret</th>'; 
         echo '<th>Durum</th>';
         echo '</tr></thead>';
         echo '<tbody>';
@@ -193,7 +162,7 @@ function render_dokan_stock_admin_page() {
 }
 
 // **Satıcılar için stok takip sayfası**
-function dokan_vendor_stock_tracking() {
+function dokan_vendor_stock_tracking($atts) {
     // Giriş kontrolü
     if (!is_user_logged_in()) {
         return '<p>Lütfen giriş yapın.</p>';
@@ -270,13 +239,14 @@ function dokan_vendor_stock_tracking() {
         $output .= '<td>' . $online_sales . '</td>';
         $output .= '<td class="manual-sales-' . $product_id . '">' . $manual_sales . '</td>';
         $output .= '<td class="total-sales-' . $product_id . '">' . $total_sales . '</td>';
-        $output .= '<td>
-            <button class="stock-add-btn button" data-product-id="' . $product_id . '">Stok Ekle</button>
-            <button class="manual-sale-btn button" data-product-id="' . $product_id . '">Manuel Satış</button>
-            <button class="show-history-btn button" data-product-id="' . $product_id . '">Geçmiş</button>
-            <button class="set-stock-btn button" data-product-id="' . $product_id . '">Stok Gir</button>
-            <button class="delete-stock-btn button" data-product-id="' . $product_id . '">Stok Sil</button>
-            <button class="delete-product-btn button" data-product-id="' . $product_id . '">Ürünü Sil</button>
+        $output .= '<td class="actions">
+            <button class="button edit-product-btn" data-product-id="' . $product_id . '">Düzenle</button>
+            <button class="button stock-add-btn" data-product-id="' . $product_id . '">Stok Ekle</button>
+            <button class="button manual-sale-btn" data-product-id="' . $product_id . '">Manuel Satış</button>
+            <button class="button show-history-btn" data-product-id="' . $product_id . '">Geçmiş</button>
+            <button class="button set-stock-btn" data-product-id="' . $product_id . '">Stok Ayarla</button>
+            <button class="button delete-stock-btn" data-product-id="' . $product_id . '">Stok Çıkar</button>
+            <button class="button delete-product-btn" data-product-id="' . $product_id . '">Ürünü Sil</button>
         </td>';
         $output .= '</tr>';
         
@@ -923,3 +893,166 @@ function delete_product_ajax() {
     }
 }
 add_action('wp_ajax_delete_product', 'delete_product_ajax');
+
+// Ürün verilerini getiren AJAX işleyici
+function get_product_data_ajax() {
+    check_ajax_referer('dokan-stock-security', 'security');
+    
+    if (!is_user_logged_in()) {
+        wp_send_json_error('Oturum açmanız gerekiyor');
+        return;
+    }
+    
+    if (!isset($_POST['product_id'])) {
+        wp_send_json_error('Ürün ID eksik');
+        return;
+    }
+    
+    $product_id = intval($_POST['product_id']);
+    $product = wc_get_product($product_id);
+    
+    if (!$product) {
+        wp_send_json_error('Ürün bulunamadı');
+        return;
+    }
+    
+    // Kategori ve etiketleri al
+    $categories = wp_get_object_terms($product_id, 'product_cat', array('fields' => 'ids'));
+    $tags = wp_get_object_terms($product_id, 'product_tag', array('fields' => 'ids'));
+    
+    // Galeri görsellerinin URL'lerini al
+    $gallery_ids = $product->get_gallery_image_ids();
+    $gallery_urls = array();
+    
+    foreach($gallery_ids as $image_id) {
+        $gallery_urls[] = wp_get_attachment_image_url($image_id, 'thumbnail');
+    }
+    
+    // Ürün verilerini hazırla
+    $product_data = array(
+        'id' => $product_id,
+        'name' => $product->get_name(),
+        'sku' => $product->get_sku(),
+        'price' => $product->get_regular_price(),
+        'stock' => $product->get_stock_quantity(),
+        'short_description' => $product->get_short_description(),
+        'description' => $product->get_description(),
+        'categories' => $categories,
+        'tags' => $tags,
+        'image_id' => $product->get_image_id(),
+        'image_url' => wp_get_attachment_image_url($product->get_image_id(), 'thumbnail'),
+        'gallery_ids' => $gallery_ids,
+        'gallery_urls' => $gallery_urls
+    );
+    
+    wp_send_json_success($product_data);
+}
+add_action('wp_ajax_get_product_data', 'get_product_data_ajax');
+
+// Ürün güncelleme AJAX işleyici
+function update_product_ajax() {
+    try {
+        error_log('UPDATE PRODUCT - Başlangıç');
+        error_log('POST verisi: ' . print_r($_POST, true));
+        
+        if (!check_ajax_referer('dokan-stock-security', 'security', false)) {
+            wp_send_json_error('Güvenlik doğrulaması başarısız');
+            return;
+        }
+
+        if (!is_user_logged_in()) {
+            wp_send_json_error('Oturum açmanız gerekiyor');
+            return;
+        }
+
+        $current_user = wp_get_current_user();
+        if (!in_array('seller', $current_user->roles) && 
+            !in_array('vendor', $current_user->roles) && 
+            !in_array('wcfm_vendor', $current_user->roles) && 
+            !in_array('dc_vendor', $current_user->roles)) {
+            wp_send_json_error('Bu işlem için yetkiniz yok');
+            return;
+        }
+
+        if (!isset($_POST['product_data'])) {
+            wp_send_json_error('Ürün verisi bulunamadı');
+            return;
+        }
+
+        $product_data = $_POST['product_data'];
+        
+        if (!isset($product_data['product_id'])) {
+            wp_send_json_error('Ürün ID eksik');
+            return;
+        }
+        
+        $product_id = intval($product_data['product_id']);
+        $product = wc_get_product($product_id);
+        
+        if (!$product) {
+            wp_send_json_error('Ürün bulunamadı');
+            return;
+        }
+        
+        // Ürünün yazarını kontrol et
+        $post = get_post($product_id);
+        if ($post->post_author != get_current_user_id()) {
+            wp_send_json_error('Bu ürünü düzenleme yetkiniz yok');
+            return;
+        }
+
+        try {
+            // Temel bilgileri güncelle
+            $product->set_name(sanitize_text_field($product_data['name']));
+            $product->set_regular_price(strval(floatval($product_data['price'])));
+            $product->set_description(wp_kses_post($product_data['description']));
+            $product->set_short_description(wp_kses_post($product_data['short_description']));
+            $product->set_stock_quantity(intval($product_data['stock']));
+            
+            if (!empty($product_data['sku'])) {
+                $product->set_sku(sanitize_text_field($product_data['sku']));
+            }
+            
+            // Kategoriler
+            if (!empty($product_data['categories'])) {
+                $product->set_category_ids(array_map('intval', $product_data['categories']));
+            }
+            
+            // Etiketler
+            if (!empty($product_data['tags'])) {
+                $product->set_tag_ids(array_map('intval', $product_data['tags']));
+            }
+            
+            // Ana görsel
+            if (!empty($product_data['image_id'])) {
+                $product->set_image_id(intval($product_data['image_id']));
+            }
+            
+            // Galeri görselleri
+            if (!empty($product_data['gallery_ids']) && is_array($product_data['gallery_ids'])) {
+                $gallery_ids = array_filter($product_data['gallery_ids'], function($value) {
+                    return !empty($value);
+                });
+                if (!empty($gallery_ids)) {
+                    $product->set_gallery_image_ids(array_map('intval', $gallery_ids));
+                }
+            }
+
+            $product->save();
+            
+            wp_send_json_success([
+                'message' => 'Ürün başarıyla güncellendi',
+                'product_id' => $product_id
+            ]);
+
+        } catch (Exception $e) {
+            error_log('UPDATE PRODUCT - Ürün güncelleme hatası: ' . $e->getMessage());
+            wp_send_json_error('Ürün güncellenirken hata: ' . $e->getMessage());
+        }
+
+    } catch (Exception $e) {
+        error_log('UPDATE PRODUCT - Genel hata: ' . $e->getMessage());
+        wp_send_json_error('İşlem sırasında hata: ' . $e->getMessage());
+    }
+}
+add_action('wp_ajax_update_product', 'update_product_ajax');

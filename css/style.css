@@ -409,4 +409,24 @@
 
 .media-modal-backdrop {
     z-index: 999999 !important;
-} 
+}
+
+/* Düzenleme butonu için stil */
+.edit-product-btn {
+    background-color: #0073aa;
+    color: white;
+    border: none;
+    margin-right: 5px;
+}
+
+.edit-product-btn:hover {
+    background-color: #005177;
+}
+
+/* Düzenleme popup'ı için stil */
+#edit-product-popup .popup-content {
+    min-width: 700px;
+    width: 90%;
+    max-width: 900px;
+    max-height: 95vh;
+}
