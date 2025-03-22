@@ -1195,7 +1195,6 @@ function get_critical_stocks_ajax() {
                     <td>%d</td>
                     <td><span class="critical-level-indicator %s">%s</span></td>
                     <td>
-                        <button class="button stock-add-btn" data-product-id="%d">Stok Ekle</button>
                         <button class="button set-critical-level-btn" data-product-id="%d" data-critical-level="%d">Kritik Seviye Ayarla</button>
                     </td>
                 </tr>',
@@ -1204,7 +1203,6 @@ function get_critical_stocks_ajax() {
                 esc_html($product['critical_level']),
                 $critical_class,
                 $critical_text,
-                $product['id'],
                 $product['id'],
                 $product['critical_level']
             );
