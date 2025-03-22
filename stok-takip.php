@@ -570,62 +570,80 @@ function get_stock_history_ajax() {
 }
 add_action('wp_ajax_get_stock_history', 'get_stock_history_ajax');
 
-// Yeni ürün ekleme için AJAX handler
+// Kategori ve etiketleri getiren AJAX handler
+function get_product_taxonomies_ajax() {
+    check_ajax_referer('dokan-stock-security', 'security');
+    
+    if (!is_user_logged_in()) {
+        wp_send_json_error('Oturum açmanız gerekiyor');
+        return;
+    }
+
+    // Kategorileri al
+    $categories = get_terms([
+        'taxonomy' => 'product_cat',
+        'hide_empty' => false,
+    ]);
+
+    // Etiketleri al
+    $tags = get_terms([
+        'taxonomy' => 'product_tag',
+        'hide_empty' => false,
+    ]);
+
+    wp_send_json_success([
+        'categories' => $categories,
+        'tags' => $tags
+    ]);
+}
+add_action('wp_ajax_get_product_taxonomies', 'get_product_taxonomies_ajax');
+
+// Ürün ekleme fonksiyonunu güncelle
 function add_new_product_ajax() {
     try {
-        // Gelen veriyi logla
         error_log('ADD NEW PRODUCT - Başlangıç');
         error_log('POST verisi: ' . print_r($_POST, true));
         
-        // Nonce kontrolü
         if (!check_ajax_referer('dokan-stock-security', 'security', false)) {
-            error_log('ADD NEW PRODUCT - Nonce hatası');
             wp_send_json_error('Güvenlik doğrulaması başarısız');
             return;
         }
 
-        // Kullanıcı kontrolü
         if (!is_user_logged_in()) {
-            error_log('ADD NEW PRODUCT - Kullanıcı giriş yapmamış');
             wp_send_json_error('Oturum açmanız gerekiyor');
             return;
         }
 
-        // Yetki kontrolü
         $current_user = wp_get_current_user();
         if (!in_array('seller', $current_user->roles) && 
             !in_array('vendor', $current_user->roles) && 
             !in_array('wcfm_vendor', $current_user->roles) && 
             !in_array('dc_vendor', $current_user->roles)) {
-            error_log('ADD NEW PRODUCT - Yetkisiz kullanıcı');
             wp_send_json_error('Bu işlem için yetkiniz yok');
             return;
         }
 
-        // Veri kontrolü
         if (!isset($_POST['product_data'])) {
-            error_log('ADD NEW PRODUCT - Ürün verisi eksik');
             wp_send_json_error('Ürün verisi bulunamadı');
             return;
         }
 
         $product_data = $_POST['product_data'];
-        error_log('Ürün verisi: ' . print_r($product_data, true));
-
-        // WooCommerce kontrolü
+        
         if (!class_exists('WC_Product_Simple')) {
-            error_log('ADD NEW PRODUCT - WooCommerce yüklü değil');
             wp_send_json_error('WooCommerce aktif değil');
             return;
         }
 
-        // Ürün oluştur
         try {
             $product = new WC_Product_Simple();
+            
+            // Temel bilgiler
             $product->set_name(sanitize_text_field($product_data['name']));
             $product->set_status('publish');
             $product->set_regular_price(strval(floatval($product_data['price'])));
             $product->set_description(wp_kses_post($product_data['description']));
+            $product->set_short_description(wp_kses_post($product_data['short_description']));
             $product->set_stock_quantity(intval($product_data['stock']));
             $product->set_manage_stock(true);
             $product->set_stock_status('instock');
@@ -634,17 +652,32 @@ function add_new_product_ajax() {
                 $product->set_sku(sanitize_text_field($product_data['sku']));
             }
             
+            // Kategoriler
+            if (!empty($product_data['categories'])) {
+                $product->set_category_ids(array_map('intval', $product_data['categories']));
+            }
+            
+            // Etiketler
+            if (!empty($product_data['tags'])) {
+                $product->set_tag_ids(array_map('intval', $product_data['tags']));
+            }
+            
+            // Ana görsel
             if (!empty($product_data['image_id'])) {
                 $product->set_image_id(intval($product_data['image_id']));
             }
+            
+            // Galeri görselleri
+            if (!empty($product_data['gallery_ids'])) {
+                $product->set_gallery_image_ids(array_map('intval', $product_data['gallery_ids']));
+            }
 
             $product_id = $product->save();
-            error_log('Ürün kaydedildi. ID: ' . $product_id);
-
-            wp_send_json_success(array(
+            
+            wp_send_json_success([
                 'message' => 'Ürün başarıyla eklendi',
                 'product_id' => $product_id
-            ));
+            ]);
 
         } catch (Exception $e) {
             error_log('ADD NEW PRODUCT - Ürün oluşturma hatası: ' . $e->getMessage());

@@ -241,10 +241,10 @@ jQuery(document).ready(function($) {
                         var newEndDate = $(this).closest('.history-filter').find('.history-date-end').val();
                         
                         if (!newStartDate || !newEndDate) {
-                            alert('Lütfen başlangıç ve bitiş tarihlerini seçin');
-                            return;
-                        }
-                        
+            alert('Lütfen başlangıç ve bitiş tarihlerini seçin');
+            return;
+        }
+        
                         updateHistory(productId, newStartDate, newEndDate, 1);
                     });
 
@@ -327,156 +327,211 @@ jQuery(document).ready(function($) {
 
     // Yeni Ürün Ekle butonu için event listener
     $('.add-new-product').on('click', function() {
-        showNewProductPopup();
+        $('body').append(getNewProductFormHtml());
+        loadTaxonomies();
+        
+        // Select2 initialize
+        $('.categories-select, .tags-select').select2({
+            width: '100%',
+            placeholder: 'Seçiniz...',
+            allowClear: true,
+            closeOnSelect: false,
+            tags: true // Yeni etiket eklemeye izin ver
+        });
     });
 
-    function showNewProductPopup() {
-        var popupHtml = `
-            <div id="new-product-popup" class="stock-popup">
-                <div class="popup-content">
-                    <h3 class="popup-title">Yeni Ürün Ekle</h3>
-                    <form id="new-product-form">
+    // Yeni ürün ekleme popup'ı için HTML
+    function getNewProductFormHtml() {
+        return `
+        <div id="new-product-popup" class="stock-popup">
+            <div class="popup-content">
+                <h3>Yeni Ürün Ekle</h3>
+                <form id="new-product-form">
+                    <div class="form-group">
+                        <label>Ürün Adı:</label>
+                        <input type="text" name="name" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Ürün Kodu (SKU):</label>
+                        <input type="text" name="sku">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Fiyat:</label>
+                        <input type="number" name="price" step="0.01" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Başlangıç Stok:</label>
+                        <input type="number" name="stock" required>
+                    </div>
+                    
+                    <div class="taxonomy-container">
                         <div class="form-group">
-                            <label>Ürün Adı:</label>
-                            <input type="text" id="product-name" required>
+                            <label>Kategoriler:</label>
+                            <select name="categories[]" multiple class="categories-select">
+                                <option value="">Yükleniyor...</option>
+                            </select>
                         </div>
+                        
                         <div class="form-group">
-                            <label>Ürün Kodu (SKU):</label>
-                            <input type="text" id="product-sku">
+                            <label>Etiketler:</label>
+                            <select name="tags[]" multiple class="tags-select">
+                                <option value="">Yükleniyor...</option>
+                            </select>
                         </div>
-                        <div class="form-group">
-                            <label>Başlangıç Stok Miktarı:</label>
-                            <input type="number" id="product-stock" min="0" value="0">
-                        </div>
-                        <div class="form-group">
-                            <label>Fiyat:</label>
-                            <input type="number" id="product-price" min="0" step="0.01" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Ürün Açıklaması:</label>
-                            <textarea id="product-description"></textarea>
-                        </div>
-                        <div class="form-group">
-                            <label>Ürün Görseli:</label>
-                            <div class="image-upload-container">
-                                <img id="product-image-preview" src="" style="display: none;">
-                                <input type="hidden" id="product-image-id">
-                                <button type="button" class="button select-image">Görsel Seç</button>
-                                <button type="button" class="button remove-image" style="display: none;">Görseli Kaldır</button>
-                            </div>
-                        </div>
-                        <div class="button-group">
-                            <button type="submit" class="button save-new-product">Kaydet</button>
-                            <button type="button" class="button cancel-new-product">İptal</button>
-                        </div>
-                    </form>
-                </div>
-            </div>`;
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Kısa Açıklama:</label>
+                        <textarea name="short_description" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Detaylı Açıklama:</label>
+                        <textarea name="description" rows="5"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Ana Görsel:</label>
+                        <button type="button" class="button upload-image">Görsel Seç</button>
+                        <div class="image-preview"></div>
+                        <input type="hidden" name="image_id">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Galeri Görselleri:</label>
+                        <button type="button" class="button upload-gallery">Görseller Seç</button>
+                        <div class="gallery-preview"></div>
+                        <input type="hidden" name="gallery_ids">
+                    </div>
+                    
+                    <div class="button-group">
+                        <button type="submit" class="button button-primary">Kaydet</button>
+                        <button type="button" class="button cancel-product">İptal</button>
+                    </div>
+                </form>
+            </div>
+        </div>`;
+    }
 
-        $('body').append(popupHtml);
-        $('#new-product-popup').show();
+    // Kategori ve etiketleri yükle
+    function loadTaxonomies() {
+        $.ajax({
+            url: dokanStock.ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'get_product_taxonomies',
+                security: dokanStock.security
+            },
+            success: function(response) {
+                if (response.success) {
+                    // Kategorileri doldur
+                    var categorySelect = $('.categories-select');
+                    categorySelect.empty();
+                    $.each(response.data.categories, function(i, category) {
+                        categorySelect.append($('<option>', {
+                            value: category.term_id,
+                            text: category.name
+                        }));
+                    });
 
-        // Form submit handler
-        $('#new-product-form').on('submit', function(e) {
-            e.preventDefault();
-            
-            var name = $('#product-name').val().trim();
-            var sku = $('#product-sku').val().trim();
-            var stock = parseInt($('#product-stock').val()) || 0;
-            var price = parseFloat($('#product-price').val()) || 0;
-            var description = $('#product-description').val().trim();
-            var imageId = $('#product-image-id').val();
-
-            // Form validasyonu
-            if (!name) {
-                alert('Lütfen ürün adını giriniz');
-                return;
-            }
-
-            if (!price || price <= 0) {
-                alert('Lütfen geçerli bir fiyat giriniz');
-                return;
-            }
-
-            // AJAX isteği
-            $.ajax({
-                url: dokanStock.ajaxurl,
-                type: 'POST',
-                data: {
-                    action: 'add_new_product',
-                    security: dokanStock.security,
-                    product_data: {
-                        name: name,
-                        sku: sku,
-                        stock: stock,
-                        price: price,
-                        description: description,
-                        image_id: imageId || 0
-                    }
-                },
-                success: function(response) {
-                    console.log('Sunucu yanıtı:', response);
-                    if (response.success) {
-                        alert('Ürün başarıyla eklendi');
-                        location.reload();
-                    } else {
-                        alert('Hata: ' + (response.data || 'Bilinmeyen bir hata oluştu'));
-                    }
-                },
-                error: function(xhr, status, error) {
-                    console.error('AJAX hatası:', error);
-                    console.error('Durum:', status);
-                    console.error('Yanıt:', xhr.responseText);
-                    alert('Bir hata oluştu. Lütfen tekrar deneyin.');
+                    // Etiketleri doldur
+                    var tagSelect = $('.tags-select');
+                    tagSelect.empty();
+                    $.each(response.data.tags, function(i, tag) {
+                        tagSelect.append($('<option>', {
+                            value: tag.term_id,
+                            text: tag.name
+                        }));
+                    });
                 }
-            });
-        });
-
-        // WordPress medya yükleyici
-        var mediaUploader;
-        $('.select-image').on('click', function(e) {
-            e.preventDefault();
-
-            if (mediaUploader) {
-                mediaUploader.open();
-                return;
             }
-
-            mediaUploader = wp.media({
-                title: 'Ürün Görseli Seç',
-                button: {
-                    text: 'Görseli Kullan'
-                },
-                multiple: false,
-                library: {
-                    type: 'image'
-                }
-            });
-
-            mediaUploader.on('select', function() {
-                var attachment = mediaUploader.state().get('selection').first().toJSON();
-                $('#product-image-preview').attr('src', attachment.url).show();
-                $('#product-image-id').val(attachment.id);
-                $('.select-image').hide();
-                $('.remove-image').show();
-            });
-
-            mediaUploader.open();
-        });
-
-        // Görseli kaldır
-        $('.remove-image').on('click', function() {
-            $('#product-image-preview').attr('src', '').hide();
-            $('#product-image-id').val('');
-            $('.select-image').show();
-            $('.remove-image').hide();
-        });
-
-        // İptal butonu
-        $('.cancel-new-product').on('click', function() {
-            $('#new-product-popup').remove();
         });
     }
+
+    // Görsel yükleme işleyicisi
+    function handleImageUpload(button, previewDiv, inputField, multiple = false) {
+        var frame = wp.media({
+            title: 'Görsel Seç',
+            multiple: multiple
+        });
+
+        frame.on('select', function() {
+            var selection = frame.state().get('selection');
+            var ids = [];
+            previewDiv.empty();
+
+            selection.each(function(attachment) {
+                ids.push(attachment.id);
+                previewDiv.append(
+                    $('<img>', {
+                        src: attachment.attributes.sizes.thumbnail.url,
+                        width: 80,
+                        height: 80,
+                        style: 'margin: 5px;'
+                    })
+                );
+            });
+
+            inputField.val(ids.join(','));
+        });
+
+        frame.open();
+    }
+
+    $(document).on('click', '.upload-image', function() {
+        handleImageUpload(
+            $(this),
+            $(this).siblings('.image-preview'),
+            $(this).siblings('input[name="image_id"]'),
+            false
+        );
+    });
+
+    $(document).on('click', '.upload-gallery', function() {
+        handleImageUpload(
+            $(this),
+            $(this).siblings('.gallery-preview'),
+            $(this).siblings('input[name="gallery_ids"]'),
+            true
+        );
+    });
+
+    $(document).on('submit', '#new-product-form', function(e) {
+        e.preventDefault();
+        var formData = {
+            name: $('input[name="name"]').val(),
+            sku: $('input[name="sku"]').val(),
+            price: $('input[name="price"]').val(),
+            stock: $('input[name="stock"]').val(),
+            categories: $('.categories-select').val(),
+            tags: $('.tags-select').val(),
+            short_description: $('textarea[name="short_description"]').val(),
+            description: $('textarea[name="description"]').val(),
+            image_id: $('input[name="image_id"]').val(),
+            gallery_ids: $('input[name="gallery_ids"]').val().split(',')
+        };
+        
+        $.ajax({
+            url: dokanStock.ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'add_new_product',
+                security: dokanStock.security,
+                product_data: formData
+            },
+            success: function(response) {
+                if (response.success) {
+                    alert(response.data.message);
+                    location.reload();
+                } else {
+                    alert('Hata: ' + response.data);
+                }
+            }
+        });
+    });
 
     // Stok Gir butonu için event listener ekle
     $('.set-stock-btn').on('click', function() {
@@ -655,8 +710,22 @@ jQuery(document).ready(function($) {
                     console.error('Yanıt:', xhr.responseText);
                     alert('Bir hata oluştu. Lütfen tekrar deneyin.');
                     $btn.prop('disabled', false).text('Ürünü Sil');
-                }
-            });
+            }
+        });
+    }
+    });
+
+    // İptal butonuna tıklama olayı
+    $(document).on('click', '.cancel-product', function() {
+        // Popup'ı temizle ve kapat
+        $('#new-product-popup').remove();
+    });
+
+    // Popup dışına tıklama ile kapatma
+    $(document).on('click', '#new-product-popup', function(e) {
+        // Eğer direkt popup'ın kendisine tıklandıysa ve içeriğine değil
+        if (e.target === this) {
+            $('#new-product-popup').remove();
         }
     });
 });
