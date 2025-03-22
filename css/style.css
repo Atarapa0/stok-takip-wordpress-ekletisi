@@ -1410,3 +1410,20 @@ textarea:focus {
     content: "📊";
     margin-right: 6px;
 }
+
+/* Stok değişimi vurgulama için animasyon */
+@keyframes highlight {
+    0% { background-color: transparent; }
+    50% { background-color: rgba(255, 193, 7, 0.3); }
+    100% { background-color: transparent; }
+}
+
+.highlight-change {
+    animation: highlight 2s ease-in-out;
+}
+
+/* Online satış tipi için stil */
+tr.history-row td span.online-sale {
+    color: #2196F3;
+    font-weight: bold;
+}

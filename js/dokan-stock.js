@@ -1025,7 +1025,7 @@ jQuery(document).ready(function($) {
             },
             error: function(xhr, status, error) {
                 $('#critical-loading').remove();
-                console.error('AJAX hatası:', xhr.responseText);
+                console.error('AJAX hatası:', error);
                 alert('Kritik stok kontrolü sırasında bir hata oluştu!');
             }
         });
@@ -1386,5 +1386,125 @@ jQuery(document).ready(function($) {
                 alert('Excel dosyası oluşturulurken bir hata oluştu!');
             }
         });
+    });
+
+    // Stok durumunu düzenli aralıklarla güncellemek için AJAX kullanımı
+    function setupStockPolling() {
+        // Stok güncellemelerini kontrol etme fonksiyonu
+        function checkStockUpdates(force_check = false) {
+            // Ürün ID'lerini topla
+            var productIds = [];
+            var previousStocks = {};
+            
+            $('.stock-table tbody tr').each(function() {
+                var productId = $(this).find('.stock-add-btn').data('product-id');
+                if (productId) {
+                    productIds.push(productId);
+                    // Mevcut stok değerlerini sakla
+                    previousStocks[productId] = parseInt($('#stock_' + productId).text());
+                }
+            });
+            
+            if (productIds.length === 0) {
+                return;
+            }
+            
+            $.ajax({
+                url: dokanStock.ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'check_stock_updates',
+                    product_ids: productIds,
+                    previous_stocks: previousStocks, // Önceki stok değerlerini gönder
+                    security: dokanStock.security,
+                    force_check: force_check
+                },
+                success: function(response) {
+                    if (response.success && response.data) {
+                        // Stok ve satış verilerini güncelle
+                        $.each(response.data, function(productId, data) {
+                            $('#stock_' + productId).text(data.stock);
+                            $('.manual-sales-' + productId).text(data.manual_sales);
+                            $('.total-sales-' + productId).text(data.total_sales);
+                            
+                            // Online satış değerini de güncelle
+                            $('td').eq(3).filter(':contains("' + productId + '")').text(data.online_sales);
+                            
+                            // Stok değişimini vurgula
+                            if (data.stock_changed) {
+                                $('#stock_' + productId).addClass('highlight-change');
+                                setTimeout(function() {
+                                    $('#stock_' + productId).removeClass('highlight-change');
+                                }, 2000);
+                            }
+                        });
+                    }
+                }
+            });
+        }
+        
+        // İlk kontrolü hemen yap
+        checkStockUpdates();
+        
+        // 10 saniyede bir stok güncellemelerini kontrol et (30 sn yerine)
+        var pollingInterval = setInterval(checkStockUpdates, 10000);
+        
+        // WebSocket kullanarak gerçek zamanlı güncelleme yap (eğer kullanılabilirse)
+        if ('WebSocket' in window) {
+            try {
+                // WooCommerce sipariş olaylarını dinle
+                var orderEventsSource = new EventSource(dokanStock.ajaxurl + '?action=listen_order_events');
+                
+                orderEventsSource.onmessage = function(event) {
+                    var data = JSON.parse(event.data);
+                    if (data.type === 'order_created' || data.type === 'order_updated') {
+                        // Sipariş olayı alındığında hemen güncelleme yap
+                        checkStockUpdates(true);
+                    }
+                };
+                
+                orderEventsSource.onerror = function() {
+                    // Hata durumunda bağlantıyı kapat ve interval'e geri dön
+                    orderEventsSource.close();
+                };
+            } catch (e) {
+                console.log('EventSource not supported or error:', e);
+            }
+        }
+        
+        // Sayfada görünür olduğunda ve kullanıcı etkileşimde olduğunda kontrol et
+        $(document).on('mousemove keydown', _.debounce(function() {
+            checkStockUpdates();
+        }, 2000)); // Sık çağrıları önlemek için 2 sn debounce
+    }
+
+    // Ana sayfa yüklendiğinde stok pollingini başlat
+    $(document).ready(function() {
+        // ... Mevcut kod ...
+        
+        setupStockPolling();
+        
+        // Sipariş sonrası geri dönüşte anlık güncelleme
+        if (window.performance && window.performance.navigation.type === window.performance.navigation.TYPE_BACK_FORWARD) {
+            // Kullanıcı geri döndüğünde hemen güncelle
+            setTimeout(function() {
+                $('.stock-table tbody tr').each(function() {
+                    var productId = $(this).find('.stock-add-btn').data('product-id');
+                    if (productId) {
+                        updateHistory(productId);
+                    }
+                });
+            }, 500);
+        }
+    });
+
+    // Sayfa görünürlük API'si ile sayfaya geri dönüşlerde güncelleme yapma
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible') {
+            // Sayfa görünür olduğunda stoku hemen kontrol et
+            if (typeof checkStockUpdates === 'function') {
+                checkStockUpdates(true); // force_check parametresi ile
+            }
+        }
     });
 });

@@ -408,7 +408,7 @@ function update_stock_ajax() {
 }
 add_action('wp_ajax_update_stock', 'update_stock_ajax');
 
-// Stok geçmişi HTML'ini oluşturan yardımcı fonksiyon
+// Stok geçmişi HTML'ini oluşturan yardımcı fonksiyonu güncelle
 function get_stock_history_html($product_id, $vendor_id, $start_date = null, $end_date = null, $page = 1) {
     global $wpdb;
     $movements_table = $wpdb->prefix . 'dokan_stock_movements';
@@ -475,6 +475,7 @@ function get_stock_history_html($product_id, $vendor_id, $start_date = null, $en
         $type = match($movement->movement_type) {
             'add' => 'Stok Ekleme',
             'sale' => 'Manuel Satış',
+            'online_sale' => 'Online Satış', 
             'delete' => 'Stok Silme',
             'set' => 'Stok Güncelleme',
             default => 'Diğer'
@@ -483,15 +484,19 @@ function get_stock_history_html($product_id, $vendor_id, $start_date = null, $en
         $quantity = abs($movement->quantity);
         $date = wp_date('d.m.Y H:i', strtotime($movement->movement_date));
         
+        // Online satış için özel stil sınıfı ekle
+        $type_class = $movement->movement_type === 'online_sale' ? 'class="online-sale"' : '';
+        
         $output .= sprintf(
-            '<tr>
+            '<tr class="history-row">
                 <td>%s</td>
-                <td>%s</td>
+                <td><span %s>%s</span></td>
                 <td>%d</td>
                 <td>%d</td>
                 <td>%s</td>
             </tr>',
             esc_html($date),
+            $type_class,
             esc_html($type),
             esc_html($quantity),
             esc_html($movement->current_stock),
@@ -1161,13 +1166,13 @@ function get_critical_stocks_ajax() {
         $output .= '<h4>Kritik Stok Seviyesindeki Ürünler</h4>';
         $output .= '<p>Aşağıdaki ürünlerin stok seviyesi kritik eşiğin altındadır.</p>';
         $output .= '<table class="widefat">';
-        $output .= '<thead><tr>
-            <th>Ürün</th>
-            <th>Mevcut Stok</th>
-            <th>Kritik Seviye</th>
-            <th>Durum</th>
-            <th>İşlem</th>
-        </tr></thead>';
+        $output .= '<thead><tr>';
+        echo '<th>Ürün</th>';
+        echo '<th>Mevcut Stok</th>';
+        echo '<th>Kritik Seviye</th>';
+        echo '<th>Durum</th>';
+        echo '<th>İşlem</th>';
+        echo '</tr></thead>';
         $output .= '<tbody>';
         
         foreach ($critical_products as $product) {
@@ -1371,6 +1376,7 @@ function generate_stock_report_ajax() {
         $type = match($movement->movement_type) {
             'add' => 'Stok Ekleme',
             'sale' => 'Manuel Satış',
+            'online_sale' => 'Online Satış', 
             'delete' => 'Stok Silme',
             'set' => 'Stok Güncelleme',
             default => 'Diğer'
@@ -1448,6 +1454,7 @@ function export_stock_report_ajax() {
         $type = match($movement->movement_type) {
             'add' => 'Stok Ekleme',
             'sale' => 'Manuel Satış',
+            'online_sale' => 'Online Satış', 
             'delete' => 'Stok Silme',
             'set' => 'Stok Güncelleme',
             default => 'Diğer'
@@ -2078,3 +2085,330 @@ function export_sales_analysis_excel_ajax() {
     ));
 }
 add_action('wp_ajax_export_sales_analysis_excel', 'export_sales_analysis_excel_ajax');
+
+// WooCommerce siparişleri için stok hareketi kaydı oluşturma
+function record_online_order_stock_movement($order_id) {
+    $order = wc_get_order($order_id);
+    
+    // Sipariş durumu tamamlandıysa veya işlemdeyse devam et
+    if (!$order || !in_array($order->get_status(), array('completed', 'processing'))) {
+        return;
+    }
+    
+    global $wpdb;
+    $movements_table = $wpdb->prefix . 'dokan_stock_movements';
+    
+    // Sipariş kalemlerini döngüye alıp stok hareketleri tablosuna ekle
+    foreach ($order->get_items() as $item) {
+        $product_id = $item->get_product_id();
+        $product = wc_get_product($product_id);
+        
+        if (!$product || !$product->managing_stock()) {
+            continue;
+        }
+        
+        $vendor_id = get_post_field('post_author', $product_id);
+        $quantity = $item->get_quantity();
+        
+        // ÖNEMLİ: Mevcut stok değerini siparişten sonra al
+        $current_stock = $product->get_stock_quantity();
+        
+        // Eğer aynı ürün için daha önce kayıt yapılmışsa tekrar ekleme
+        $existing_record = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM $movements_table 
+            WHERE product_id = %d AND vendor_id = %d AND movement_type = 'online_sale' 
+            AND notes = %s",
+            $product_id, $vendor_id, sprintf('Online sipariş #%s', $order->get_order_number())
+        ));
+        
+        if ($existing_record > 0) {
+            continue;
+        }
+        
+        // Stok hareketi kaydı ekle
+        $wpdb->insert(
+            $movements_table,
+            array(
+                'vendor_id' => $vendor_id,
+                'product_id' => $product_id,
+                'quantity' => -$quantity, // Eksi değer çünkü bu bir satış
+                'movement_type' => 'online_sale',
+                'movement_date' => current_time('mysql'),
+                'notes' => sprintf('Online sipariş #%s', $order->get_order_number()),
+                'current_stock' => $current_stock // Güncel stok miktarı
+            ),
+            array('%d', '%d', '%d', '%s', '%s', '%s', '%d')
+        );
+        
+        // YENI: Gerçek zamanlı güncelleme için bir transient oluştur
+        set_transient('dokan_stock_updated_' . $product_id, time(), 300); // 5 dk süre ile sakla
+    }
+    
+    // YENI: Dokan stok güncellemelerini temizle, böylece hemen görünür olacak
+    delete_transient('dokan_stock_checking');
+}
+add_action('woocommerce_order_status_completed', 'record_online_order_stock_movement');
+add_action('woocommerce_order_status_processing', 'record_online_order_stock_movement');
+
+// Stok güncellemelerini kontrol eden AJAX handler
+function check_stock_updates_ajax() {
+    check_ajax_referer('dokan-stock-security', 'security');
+    
+    if (!is_user_logged_in()) {
+        wp_send_json_error('Oturum açmanız gerekiyor');
+        return;
+    }
+    
+    if (!isset($_POST['product_ids']) || !is_array($_POST['product_ids'])) {
+        wp_send_json_error('Ürün ID\'leri geçersiz');
+        return;
+    }
+    
+    // Eğer son kontrol çok yakındaysa ve güncellemeler yoksa, erken dön
+    $checking = get_transient('dokan_stock_checking');
+    if ($checking && time() - $checking < 5 && !isset($_POST['force_check'])) {
+        wp_send_json_success(['message' => 'Henüz kontrol edildi']);
+        return;
+    }
+    
+    // Kontrol edildiğini işaretle
+    set_transient('dokan_stock_checking', time(), 60);
+    
+    $product_ids = array_map('intval', $_POST['product_ids']);
+    $previous_stocks = isset($_POST['previous_stocks']) ? $_POST['previous_stocks'] : [];
+    $vendor_id = get_current_user_id();
+    $result = array();
+    
+    global $wpdb;
+    $movements_table = $wpdb->prefix . 'dokan_stock_movements';
+    
+    foreach ($product_ids as $product_id) {
+        $product = wc_get_product($product_id);
+        
+        if (!$product) {
+            continue;
+        }
+        
+        // Ürün sahibi kontrolü
+        if (get_post_field('post_author', $product_id) != $vendor_id) {
+            continue;
+        }
+        
+        // YENI: Son güncelleme kontrolü
+        $last_updated = get_transient('dokan_stock_updated_' . $product_id);
+        $stock_changed = false;
+        
+        // Önceki stok değerini kontrole etmek için kullanacağız
+        $previous_stock = isset($previous_stocks[$product_id]) ? intval($previous_stocks[$product_id]) : null;
+        $current_stock = $product->get_stock_quantity();
+        
+        // Eğer bu ürün son 5 dk içinde güncellendiyse veya stok değişmişse
+        if ($last_updated || ($previous_stock !== null && $previous_stock !== $current_stock)) {
+            $stock_changed = true;
+        }
+        
+        // Manuel satışları getir
+        $manual_sales = $wpdb->get_var($wpdb->prepare(
+            "SELECT ABS(COALESCE(SUM(quantity), 0)) FROM $movements_table 
+            WHERE product_id = %d AND vendor_id = %d AND movement_type = 'sale'",
+            $product_id, $vendor_id
+        ));
+        
+        // Online satışları getir
+        $online_sales = $product->get_total_sales();
+        
+        $manual_sales = intval($manual_sales);
+        $total_sales = $online_sales + $manual_sales;
+        
+        $result[$product_id] = array(
+            'stock' => $current_stock,
+            'manual_sales' => $manual_sales,
+            'online_sales' => $online_sales,
+            'total_sales' => $total_sales,
+            'stock_changed' => $stock_changed
+        );
+        
+        // YENI: İşlendikten sonra temizle
+        if ($last_updated) {
+            delete_transient('dokan_stock_updated_' . $product_id);
+        }
+    }
+    
+    wp_send_json_success($result);
+}
+add_action('wp_ajax_check_stock_updates', 'check_stock_updates_ajax');
+
+// Siparişler için stok güncelleme olayını yakalamak için alternatif yaklaşım
+function woocommerce_order_stock_reduction_fix($order_id) {
+    // 10 saniye bekleyerek WooCommerce'in stok güncellemelerini tamamlamasını sağla
+    wp_schedule_single_event(time() + 10, 'dokan_delayed_stock_movement_record', array($order_id));
+}
+add_action('woocommerce_payment_complete', 'woocommerce_order_stock_reduction_fix');
+add_action('woocommerce_order_status_changed', 'woocommerce_order_stock_reduction_fix');
+
+// Gecikmeli olarak stok hareketi kaydı oluştur
+function dokan_delayed_stock_movement_record($order_id) {
+    record_online_order_stock_movement($order_id);
+}
+add_action('dokan_delayed_stock_movement_record', 'dokan_delayed_stock_movement_record');
+
+// Yönetici kullanımı için: Online satış kayıtlarındaki stok miktarlarını düzeltme
+function fix_online_sale_stock_records() {
+    // Sadece yöneticiler için
+    if (!current_user_can('manage_options')) {
+        return 'Bu işlem için yetkiniz yok.';
+    }
+    
+    global $wpdb;
+    $movements_table = $wpdb->prefix . 'dokan_stock_movements';
+    
+    // Online satış kayıtlarını al
+    $online_sales = $wpdb->get_results(
+        "SELECT * FROM $movements_table WHERE movement_type = 'online_sale' ORDER BY id ASC"
+    );
+    
+    $fixed_count = 0;
+    $previous_stocks = array();
+    
+    // Her kayıt için doğru stok miktarını hesapla ve güncelle
+    foreach ($online_sales as $sale) {
+        $product_id = $sale->product_id;
+        
+        // Bu ürün için önceki stok miktarını izle
+        if (!isset($previous_stocks[$product_id])) {
+            // Ürünün mevcut stok miktarını al
+            $product = wc_get_product($product_id);
+            if (!$product) continue;
+            
+            $current_stock = $product->get_stock_quantity();
+            
+            // Bu ürünün tüm stok hareketlerini kronolojik sırayla al
+            $all_movements = $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM $movements_table WHERE product_id = %d ORDER BY movement_date DESC",
+                $product_id
+            ));
+            
+            // En son bilinen doğru stok değerini belirle
+            $latest_stock = $current_stock;
+            
+            // Bu ürün için önceki stok değerini başlat
+            $previous_stocks[$product_id] = $latest_stock;
+        }
+        
+        // Satıştan önceki stok miktarını hesapla
+        $quantity = abs($sale->quantity);
+        $correct_stock = $previous_stocks[$product_id] + $quantity;
+        
+        // Stok hareketini güncelle
+        $wpdb->update(
+            $movements_table,
+            array('current_stock' => $correct_stock),
+            array('id' => $sale->id),
+            array('%d'),
+            array('%d')
+        );
+        
+        // Sonraki kayıt için önceki stok değerini güncelle
+        $previous_stocks[$product_id] = $correct_stock;
+        
+        $fixed_count++;
+    }
+    
+    return "Toplam $fixed_count online satış kaydının stok miktarları düzeltildi.";
+}
+
+// Admin sayfasına düzeltme aracı bağlantısı ekle
+function add_stock_fix_admin_menu() {
+    if (current_user_can('manage_options')) {
+        add_submenu_page(
+            'dokan', 
+            'Stok Kayıtlarını Düzelt', 
+            'Stok Kayıtlarını Düzelt',
+            'manage_options',
+            'dokan-fix-stock-records',
+            'render_fix_stock_records_page'
+        );
+    }
+}
+add_action('admin_menu', 'add_stock_fix_admin_menu', 99);
+
+// Düzeltme sayfasını oluştur
+function render_fix_stock_records_page() {
+    $result = '';
+    if (isset($_POST['fix_records']) && check_admin_referer('dokan_fix_stock_records')) {
+        $result = fix_online_sale_stock_records();
+    }
+    
+    echo '<div class="wrap">';
+    echo '<h1>Stok Kayıtlarını Düzelt</h1>';
+    
+    if ($result) {
+        echo '<div class="notice notice-success"><p>' . $result . '</p></div>';
+    }
+    
+    echo '<form method="post">';
+    wp_nonce_field('dokan_fix_stock_records');
+    echo '<p>Bu araç, online satış kayıtlarındaki stok miktarı hatalarını düzeltir.</p>';
+    echo '<p class="submit"><input type="submit" name="fix_records" class="button button-primary" value="Kayıtları Düzelt"></p>';
+    echo '</form>';
+    echo '</div>';
+}
+
+// Sipariş olaylarını dinleme için AJAX handler
+function listen_order_events() {
+    // SSE başlıklarını ayarla
+    header('Content-Type: text/event-stream');
+    header('Cache-Control: no-cache');
+    header('Connection: keep-alive');
+    
+    // Giriş kontrolü
+    if (!is_user_logged_in()) {
+        echo "data: " . json_encode(['error' => 'unauthorized']) . "\n\n";
+        flush();
+        exit;
+    }
+    
+    // Yeni siparişleri kontrol et (eğer WooCommerce'in hooks'u varsa kullanılabilir)
+    $last_checked = time();
+    
+    // Döngüyü başlat
+    while (true) {
+        // Bağlantı koptu mu kontrol et
+        if (connection_aborted()) {
+            break;
+        }
+        
+        global $wpdb;
+        
+        // Son birkaç dakikada oluşturulan veya güncellenen siparişleri kontrol et
+        $check_time = date('Y-m-d H:i:s', $last_checked - 300); // 5 dakika önceki
+        $last_checked = time();
+        
+        $recent_orders = $wpdb->get_results($wpdb->prepare(
+            "SELECT ID FROM {$wpdb->posts} 
+            WHERE post_type = 'shop_order' 
+            AND (post_date >= %s OR post_modified >= %s)
+            AND post_status IN ('wc-processing', 'wc-completed')",
+            $check_time, $check_time
+        ));
+        
+        if (!empty($recent_orders)) {
+            // Yeni veya güncellenmiş sipariş var
+            echo "data: " . json_encode([
+                'type' => 'order_updated',
+                'count' => count($recent_orders)
+            ]) . "\n\n";
+            flush();
+        } else {
+            // Sadece bağlantıyı açık tut
+            echo ": keepalive\n\n";
+            flush();
+        }
+        
+        // 5 saniye bekle
+        sleep(5);
+    }
+    
+    exit;
+}
+add_action('wp_ajax_listen_order_events', 'listen_order_events');
