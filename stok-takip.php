@@ -32,16 +32,6 @@ Yapılan İşlemler:
      * İşlem sonrası stok durumu
      * Not bilgisi
 
-5. Excel Raporu:
-   - Ürün bazlı raporlama
-   - Her ürün için:
-     * Ürün kodu ve adı
-     * Mevcut stok
-     * Online satışlar
-     * Manuel satışlar
-     * Hareket geçmişi
-     * İşlem tarihleri
-
 6. Güvenlik:
    - Sadece satıcı rolüne sahip kullanıcılar erişebilir
    - Her işlem için yetki kontrolü yapılır
@@ -235,7 +225,10 @@ function dokan_vendor_stock_tracking() {
     }
 
     $output = '<div class="dokan-stock-tracking">';
+    $output .= '<div class="panel-header">';
     $output .= '<h3>Stok Takip Paneli</h3>';
+    $output .= '<button class="button add-new-product">Yeni Ürün Ekle</button>';
+    $output .= '</div>';
     $output .= '<table class="stock-table widefat">';
     $output .= '<thead><tr>
         <th>Ürün Kodu</th>
@@ -281,6 +274,8 @@ function dokan_vendor_stock_tracking() {
             <button class="stock-add-btn button" data-product-id="' . $product_id . '">Stok Ekle</button>
             <button class="manual-sale-btn button" data-product-id="' . $product_id . '">Manuel Satış</button>
             <button class="show-history-btn button" data-product-id="' . $product_id . '">Geçmiş</button>
+            <button class="set-stock-btn button" data-product-id="' . $product_id . '">Stok Gir</button>
+            <button class="delete-stock-btn button" data-product-id="' . $product_id . '">Stok Sil</button>
         </td>';
         $output .= '</tr>';
         
@@ -298,7 +293,6 @@ function dokan_vendor_stock_tracking() {
     wp_reset_postdata();
 
     $output .= '</tbody></table>';
-    $output .= '<button id="export-excel" class="button">Excel\'e Aktar</button>';
     $output .= '</div>';
 
     // Popup HTML'i
@@ -322,14 +316,20 @@ function dokan_vendor_stock_tracking() {
         </div>
     </div>';
 
-    // JavaScript ve CSS ekle
+    // Script ve style dosyalarını ekle
+    wp_enqueue_media();
     wp_enqueue_style('dokan-stock-style', plugin_dir_url(__FILE__) . 'css/style.css');
     wp_enqueue_script('dokan-stock-script', plugin_dir_url(__FILE__) . 'js/dokan-stock.js', array('jquery'), '1.0', true);
     
     // AJAX için gerekli verileri ekle
     wp_localize_script('dokan-stock-script', 'dokanStock', array(
         'ajaxurl' => admin_url('admin-ajax.php'),
-        'security' => wp_create_nonce('dokan-stock-security')
+        'security' => wp_create_nonce('dokan-stock-security'),
+        'strings' => array(
+            'savingProduct' => 'Ürün kaydediliyor...',
+            'productSaved' => 'Ürün başarıyla eklendi',
+            'error' => 'Bir hata oluştu'
+        )
     ));
 
     return $output;
@@ -429,25 +429,43 @@ function update_stock_ajax() {
 add_action('wp_ajax_update_stock', 'update_stock_ajax');
 
 // Stok geçmişi HTML'ini oluşturan yardımcı fonksiyon
-function get_stock_history_html($product_id, $vendor_id, $start_date = null, $end_date = null) {
+function get_stock_history_html($product_id, $vendor_id, $start_date = null, $end_date = null, $page = 1) {
     global $wpdb;
     $movements_table = $wpdb->prefix . 'dokan_stock_movements';
+    $per_page = 10;
+    $offset = ($page - 1) * $per_page;
 
     $where_clause = "WHERE product_id = %d AND vendor_id = %d";
     $params = array($product_id, $vendor_id);
 
     if ($start_date && $end_date) {
-        $where_clause .= " AND movement_date BETWEEN %s AND %s";
-        $params[] = $start_date . ' 00:00:00';
-        $params[] = $end_date . ' 23:59:59';
+        $where_clause .= " AND DATE(movement_date) BETWEEN DATE(%s) AND DATE(%s)";
+        $params[] = $start_date;
+        $params[] = $end_date;
     }
 
+    // Debug için
+    error_log('SQL Where Clause: ' . $where_clause);
+    error_log('Parameters: ' . print_r($params, true));
+
+    // Toplam kayıt sayısını al
+    $total_records = $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM $movements_table $where_clause",
+        $params
+    ));
+
+    // Hareket kayıtlarını al
     $movements = $wpdb->get_results($wpdb->prepare(
         "SELECT * FROM $movements_table 
         $where_clause 
-        ORDER BY movement_date DESC",
-        $params
+        ORDER BY movement_date DESC
+        LIMIT %d OFFSET %d",
+        array_merge($params, array($per_page, $offset))
     ));
+
+    // Debug için
+    error_log('Total Records: ' . $total_records);
+    error_log('Movements Count: ' . count($movements));
 
     if (empty($movements)) {
         return '<p>Bu tarih aralığında hareket kaydı yok.</p>';
@@ -474,7 +492,14 @@ function get_stock_history_html($product_id, $vendor_id, $start_date = null, $en
         <tbody>';
 
     foreach ($movements as $movement) {
-        $type = $movement->movement_type === 'add' ? 'Stok Ekleme' : 'Manuel Satış';
+        $type = match($movement->movement_type) {
+            'add' => 'Stok Ekleme',
+            'sale' => 'Manuel Satış',
+            'delete' => 'Stok Silme',
+            'set' => 'Stok Güncelleme',
+            default => 'Diğer'
+        };
+        
         $quantity = abs($movement->quantity);
         $date = wp_date('d.m.Y H:i', strtotime($movement->movement_date));
         
@@ -495,11 +520,145 @@ function get_stock_history_html($product_id, $vendor_id, $start_date = null, $en
     }
 
     $output .= '</tbody></table>';
+
+    // Sayfalandırma
+    $total_pages = ceil($total_records / $per_page);
+    if ($total_pages > 1) {
+        $output .= '<div class="history-pagination">';
+        for ($i = 1; $i <= $total_pages; $i++) {
+            $active_class = $i == $page ? 'active' : '';
+            $output .= sprintf(
+                '<button class="button pagination-btn %s" data-page="%d">%d</button>',
+                $active_class,
+                $i,
+                $i
+            );
+        }
+        $output .= '</div>';
+    }
+
     return $output;
 }
 
 // Geçmiş için AJAX handler
 function get_stock_history_ajax() {
+    check_ajax_referer('dokan-stock-security', 'security');
+    
+    if (!is_user_logged_in()) {
+        wp_send_json_error('Oturum açmanız gerekiyor');
+        return;
+    }
+
+    $current_user = wp_get_current_user();
+    if (!in_array('seller', $current_user->roles) && 
+        !in_array('vendor', $current_user->roles) && 
+        !in_array('wcfm_vendor', $current_user->roles) && 
+        !in_array('dc_vendor', $current_user->roles)) {
+        wp_send_json_error('Bu işlem için yetkiniz yok');
+        return;
+    }
+
+    $product_id = intval($_POST['product_id']);
+    $vendor_id = get_current_user_id();
+    $start_date = isset($_POST['start_date']) ? sanitize_text_field($_POST['start_date']) : null;
+    $end_date = isset($_POST['end_date']) ? sanitize_text_field($_POST['end_date']) : null;
+    $page = isset($_POST['page']) ? intval($_POST['page']) : 1;
+    
+    $history_html = get_stock_history_html($product_id, $vendor_id, $start_date, $end_date, $page);
+    wp_send_json_success($history_html);
+}
+add_action('wp_ajax_get_stock_history', 'get_stock_history_ajax');
+
+// Yeni ürün ekleme için AJAX handler
+function add_new_product_ajax() {
+    try {
+        // Gelen veriyi logla
+        error_log('ADD NEW PRODUCT - Başlangıç');
+        error_log('POST verisi: ' . print_r($_POST, true));
+        
+        // Nonce kontrolü
+        if (!check_ajax_referer('dokan-stock-security', 'security', false)) {
+            error_log('ADD NEW PRODUCT - Nonce hatası');
+            wp_send_json_error('Güvenlik doğrulaması başarısız');
+            return;
+        }
+
+        // Kullanıcı kontrolü
+        if (!is_user_logged_in()) {
+            error_log('ADD NEW PRODUCT - Kullanıcı giriş yapmamış');
+            wp_send_json_error('Oturum açmanız gerekiyor');
+            return;
+        }
+
+        // Yetki kontrolü
+        $current_user = wp_get_current_user();
+        if (!in_array('seller', $current_user->roles) && 
+            !in_array('vendor', $current_user->roles) && 
+            !in_array('wcfm_vendor', $current_user->roles) && 
+            !in_array('dc_vendor', $current_user->roles)) {
+            error_log('ADD NEW PRODUCT - Yetkisiz kullanıcı');
+            wp_send_json_error('Bu işlem için yetkiniz yok');
+            return;
+        }
+
+        // Veri kontrolü
+        if (!isset($_POST['product_data'])) {
+            error_log('ADD NEW PRODUCT - Ürün verisi eksik');
+            wp_send_json_error('Ürün verisi bulunamadı');
+            return;
+        }
+
+        $product_data = $_POST['product_data'];
+        error_log('Ürün verisi: ' . print_r($product_data, true));
+
+        // WooCommerce kontrolü
+        if (!class_exists('WC_Product_Simple')) {
+            error_log('ADD NEW PRODUCT - WooCommerce yüklü değil');
+            wp_send_json_error('WooCommerce aktif değil');
+            return;
+        }
+
+        // Ürün oluştur
+        try {
+            $product = new WC_Product_Simple();
+            $product->set_name(sanitize_text_field($product_data['name']));
+            $product->set_status('publish');
+            $product->set_regular_price(strval(floatval($product_data['price'])));
+            $product->set_description(wp_kses_post($product_data['description']));
+            $product->set_stock_quantity(intval($product_data['stock']));
+            $product->set_manage_stock(true);
+            $product->set_stock_status('instock');
+            
+            if (!empty($product_data['sku'])) {
+                $product->set_sku(sanitize_text_field($product_data['sku']));
+            }
+            
+            if (!empty($product_data['image_id'])) {
+                $product->set_image_id(intval($product_data['image_id']));
+            }
+
+            $product_id = $product->save();
+            error_log('Ürün kaydedildi. ID: ' . $product_id);
+
+            wp_send_json_success(array(
+                'message' => 'Ürün başarıyla eklendi',
+                'product_id' => $product_id
+            ));
+
+        } catch (Exception $e) {
+            error_log('ADD NEW PRODUCT - Ürün oluşturma hatası: ' . $e->getMessage());
+            wp_send_json_error('Ürün oluşturulurken hata: ' . $e->getMessage());
+        }
+
+    } catch (Exception $e) {
+        error_log('ADD NEW PRODUCT - Genel hata: ' . $e->getMessage());
+        wp_send_json_error('İşlem sırasında hata: ' . $e->getMessage());
+    }
+}
+add_action('wp_ajax_add_new_product', 'add_new_product_ajax');
+
+// Stok miktarını direkt güncelleme için AJAX handler
+function set_stock_ajax() {
     check_ajax_referer('dokan-stock-security', 'security');
     
     // Giriş ve yetki kontrolü
@@ -517,16 +676,132 @@ function get_stock_history_ajax() {
         return;
     }
 
-    if (!isset($_POST['product_id'])) {
-        wp_send_json_error('Ürün ID gerekli');
+    if (!isset($_POST['product_id']) || !isset($_POST['new_stock'])) {
+        wp_send_json_error('Geçersiz istek');
     }
 
     $product_id = intval($_POST['product_id']);
+    $new_stock = intval($_POST['new_stock']);
+    $notes = sanitize_textarea_field($_POST['notes'] ?? '');
     $vendor_id = get_current_user_id();
-    $start_date = isset($_POST['start_date']) ? sanitize_text_field($_POST['start_date']) : null;
-    $end_date = isset($_POST['end_date']) ? sanitize_text_field($_POST['end_date']) : null;
+
+    // Ürünü al
+    $product = wc_get_product($product_id);
+    if (!$product) {
+        wp_send_json_error('Ürün bulunamadı.');
+    }
+
+    global $wpdb;
+    $movements_table = $wpdb->prefix . 'dokan_stock_movements';
+
+    // Mevcut stok miktarını al
+    $current_stock = $product->get_stock_quantity();
     
-    $history_html = get_stock_history_html($product_id, $vendor_id, $start_date, $end_date);
-    wp_send_json_success($history_html);
+    // Hareket kaydını ekle
+    $result = $wpdb->insert(
+        $movements_table,
+        array(
+            'vendor_id' => $vendor_id,
+            'product_id' => $product_id,
+            'quantity' => $new_stock - $current_stock, // Fark kadar hareket
+            'movement_type' => 'set',
+            'movement_date' => current_time('mysql'),
+            'notes' => $notes,
+            'current_stock' => $new_stock
+        ),
+        array('%d', '%d', '%d', '%s', '%s', '%s', '%d')
+    );
+
+    if ($result === false) {
+        wp_send_json_error('İşlem kaydedilemedi: ' . $wpdb->last_error);
+        return;
+    }
+
+    // WooCommerce stok güncelleme
+    wc_update_product_stock($product, $new_stock, 'set');
+
+    wp_send_json_success(array(
+        'new_stock' => $new_stock,
+        'message' => 'Stok başarıyla güncellendi.'
+    ));
 }
-add_action('wp_ajax_get_stock_history', 'get_stock_history_ajax');
+add_action('wp_ajax_set_stock', 'set_stock_ajax');
+
+// Stok silme işlemi için AJAX handler ekle
+function delete_stock_ajax() {
+    check_ajax_referer('dokan-stock-security', 'security');
+    
+    // Giriş ve yetki kontrolü
+    if (!is_user_logged_in()) {
+        wp_send_json_error('Oturum açmanız gerekiyor');
+        return;
+    }
+
+    $current_user = wp_get_current_user();
+    if (!in_array('seller', $current_user->roles) && 
+        !in_array('vendor', $current_user->roles) && 
+        !in_array('wcfm_vendor', $current_user->roles) && 
+        !in_array('dc_vendor', $current_user->roles)) {
+        wp_send_json_error('Bu işlem için yetkiniz yok');
+        return;
+    }
+
+    if (!isset($_POST['product_id']) || !isset($_POST['quantity'])) {
+        wp_send_json_error('Geçersiz istek');
+    }
+
+    $product_id = intval($_POST['product_id']);
+    $quantity = intval($_POST['quantity']);
+    $notes = sanitize_textarea_field($_POST['notes'] ?? '');
+    $vendor_id = get_current_user_id();
+
+    // Ürünü al
+    $product = wc_get_product($product_id);
+    if (!$product) {
+        wp_send_json_error('Ürün bulunamadı.');
+    }
+
+    // Mevcut stok miktarını al
+    $current_stock = $product->get_stock_quantity();
+    
+    // Silinecek miktar mevcut stoktan fazla olamaz
+    if ($quantity > $current_stock) {
+        wp_send_json_error('Silinecek miktar mevcut stoktan fazla olamaz.');
+        return;
+    }
+
+    // Yeni stok miktarı
+    $new_stock = $current_stock - $quantity;
+
+    global $wpdb;
+    $movements_table = $wpdb->prefix . 'dokan_stock_movements';
+    
+    // Hareket kaydını ekle
+    $result = $wpdb->insert(
+        $movements_table,
+        array(
+            'vendor_id' => $vendor_id,
+            'product_id' => $product_id,
+            'quantity' => -$quantity,
+            'movement_type' => 'delete',
+            'movement_date' => current_time('mysql'),
+            'notes' => $notes,
+            'current_stock' => $new_stock
+        ),
+        array('%d', '%d', '%d', '%s', '%s', '%s', '%d')
+    );
+
+    if ($result === false) {
+        wp_send_json_error('İşlem kaydedilemedi: ' . $wpdb->last_error);
+        return;
+    }
+
+    // WooCommerce stok güncelleme
+    wc_update_product_stock($product, $new_stock, 'set');
+
+    wp_send_json_success(array(
+        'new_stock' => $new_stock,
+        'message' => 'Stok başarıyla silindi.'
+    ));
+}
+add_action('wp_ajax_delete_stock', 'delete_stock_ajax');

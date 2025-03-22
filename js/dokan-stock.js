@@ -201,132 +201,6 @@ jQuery(document).ready(function($) {
         $row.next().find('.cancel-form').on('click', removeInlineForm);
     });
 
-    // Excel export fonksiyonu
-    $('#export-excel').on('click', function() {
-        var date = new Date();
-        var filename = 'stok-raporu-' + date.getFullYear() + '-' + (date.getMonth() + 1) + '-' + date.getDate() + '.xls';
-        
-        // Excel için tablo başlığı
-        var tableHtml = `
-            <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-            <head>
-                <meta charset="UTF-8">
-                <style>
-                    table { border-collapse: collapse; }
-                    th, td { border: 1px solid #000; padding: 5px; }
-                    th { background-color: #f0f0f0; }
-                    .header-row { font-weight: bold; background-color: #e0e0e0; }
-                </style>
-            </head>
-            <body>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Ürün Kodu</th>
-                        <th>Ürün Adı</th>
-                        <th>Mevcut Stok</th>
-                        <th>Online Satış</th>
-                        <th>Manuel Satış</th>
-                        <th>Hareket</th>
-                        <th>Tarih</th>
-                    </tr>
-                </thead>
-                <tbody>`;
-
-        // Her ürün için bilgileri ve hareketleri al
-        $('.stock-table tbody tr:not(.history-row, .inline-form-row)').each(function() {
-            var $productRow = $(this);
-            var productId = $productRow.find('.stock-add-btn').data('product-id');
-            var sku = $productRow.find('td:eq(0)').text();
-            var productName = $productRow.find('td:eq(1)').text();
-            var currentStock = $productRow.find('td:eq(2)').text();
-            var onlineSales = $productRow.find('td:eq(3)').text();
-            var manualSales = $productRow.find('td:eq(4)').text();
-
-            // Ürün başlık satırı
-            tableHtml += `
-                <tr class="header-row">
-                    <td>${sku}</td>
-                    <td>${productName}</td>
-                    <td>${currentStock}</td>
-                    <td>${onlineSales}</td>
-                    <td>${manualSales}</td>
-                    <td></td>
-                    <td></td>
-                </tr>`;
-
-            // Boş satır
-            tableHtml += `
-                <tr>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                </tr>`;
-            
-            // AJAX ile ürünün geçmişini al
-            $.ajax({
-                url: dokanStock.ajaxurl,
-                type: 'POST',
-                async: false, // Senkron istek yapıyoruz
-                data: {
-                    action: 'get_stock_history',
-                    product_id: productId,
-                    security: dokanStock.security
-                },
-                success: function(response) {
-                    if (response.success) {
-                        // Geçici bir div oluşturup HTML'i parse edelim
-                        var $temp = $('<div>').html(response.data);
-                        
-                        // Geçmiş tablosundaki her satırı işle
-                        $temp.find('tbody tr').each(function() {
-                            var $row = $(this);
-                            var moveType = $row.find('td:eq(1)').text(); // İşlem tipi
-                            var quantity = parseInt($row.find('td:eq(2)').text()); // Miktar
-                            var stockAfterMove = $row.find('td:eq(3)').text(); // İşlem sonrası stok
-                            var moveDate = $row.find('td:eq(0)').text(); // İşlem tarihi
-
-                            tableHtml += `
-                                <tr>
-                                    <td></td>
-                                    <td></td>
-                                    <td>${stockAfterMove}</td>
-                                    <td>${moveType === 'Online Satış' ? quantity : ''}</td>
-                                    <td>${moveType === 'Manuel Satış' ? quantity : ''}</td>
-                                    <td>${moveType}</td>
-                                    <td>${moveDate}</td>
-                                </tr>`;
-                        });
-
-                        // Ürünler arası boş satır
-                        tableHtml += `
-                            <tr>
-                                <td colspan="7">&nbsp;</td>
-                            </tr>`;
-                    }
-                }
-            });
-        });
-
-        // Tabloyu kapat
-        tableHtml += '</tbody></table></body></html>';
-        
-        // Excel dosyasını indir
-        var uri = 'data:application/vnd.ms-excel;charset=utf-8,' + encodeURIComponent(tableHtml);
-        var link = document.createElement("a");
-        link.href = uri;
-        link.style = "visibility:hidden";
-        link.download = filename;
-        
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    });
-
     // Geçmiş butonu
     $('.show-history-btn').on('click', function() {
         var $row = $(this).closest('tr');
@@ -341,31 +215,59 @@ jQuery(document).ready(function($) {
         updateHistory(productId);
     });
 
-    // Tarih filtresi için event handler'lar
-    $(document).on('click', '.filter-history', function() {
-        var $historySection = $(this).closest('.stock-history');
-        var productId = $historySection.closest('tr').prev().find('.stock-add-btn').data('product-id');
-        var startDate = $historySection.find('.history-date-start').val();
-        var endDate = $historySection.find('.history-date-end').val();
+    // Geçmiş güncelleme fonksiyonu
+    function updateHistory(productId, startDate = null, endDate = null, page = 1) {
+        var $historyRow = $('#history_' + productId);
         
-        if (!startDate || !endDate) {
-            alert('Lütfen başlangıç ve bitiş tarihlerini seçin');
-            return;
-        }
-        
-        updateHistory(productId, startDate, endDate);
-    });
+        $.ajax({
+            url: dokanStock.ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'get_stock_history',
+                product_id: productId,
+                security: dokanStock.security,
+                start_date: startDate,
+                end_date: endDate,
+                page: page
+            },
+            success: function(response) {
+                if (response.success) {
+                    $historyRow.find('.history-content').html(response.data);
+                    $historyRow.show();
 
-    $(document).on('click', '.reset-filter', function() {
-        var $historySection = $(this).closest('.stock-history');
-        var productId = $historySection.closest('tr').prev().find('.stock-add-btn').data('product-id');
-        
-        // Tarih inputlarını temizle
-        $historySection.find('.history-date-start, .history-date-end').val('');
-        
-        // Filtresiz geçmişi getir
-        updateHistory(productId);
-    });
+                    // Filtreleme butonları için yeni event listener'lar
+                    $historyRow.find('.filter-history').off('click').on('click', function() {
+                        var newStartDate = $(this).closest('.history-filter').find('.history-date-start').val();
+                        var newEndDate = $(this).closest('.history-filter').find('.history-date-end').val();
+                        
+                        if (!newStartDate || !newEndDate) {
+                            alert('Lütfen başlangıç ve bitiş tarihlerini seçin');
+                            return;
+                        }
+                        
+                        updateHistory(productId, newStartDate, newEndDate, 1);
+                    });
+
+                    $historyRow.find('.reset-filter').off('click').on('click', function() {
+                        $(this).closest('.history-filter').find('.history-date-start, .history-date-end').val('');
+                        updateHistory(productId, null, null, 1);
+                    });
+
+                    // Sayfalandırma butonları için event listener
+                    $historyRow.find('.pagination-btn').off('click').on('click', function() {
+                        var newPage = $(this).data('page');
+                        updateHistory(productId, startDate, endDate, newPage);
+                    });
+                } else {
+                    alert('Geçmiş bilgileri alınamadı.');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('Ajax error:', error);
+                alert('Geçmiş bilgileri alınırken bir hata oluştu.');
+            }
+        });
+    }
 
     // Popup kaydet butonu
     $('.save-movement').on('click', function() {
@@ -423,28 +325,292 @@ jQuery(document).ready(function($) {
         $('#stock-movement-popup').hide();
     }
 
-    // Geçmiş güncelleme fonksiyonu
-    function updateHistory(productId, startDate = null, endDate = null) {
-        var $historyRow = $('#history_' + productId);
-        
-        $.ajax({
-            url: dokanStock.ajaxurl,
-            type: 'POST',
-            data: {
-                action: 'get_stock_history',
-                product_id: productId,
-                security: dokanStock.security,
-                start_date: startDate,
-                end_date: endDate
-            },
-            success: function(response) {
-                if (response.success) {
-                    $historyRow.find('.history-content').html(response.data);
-                    $historyRow.show();
-                } else {
-                    alert('Geçmiş bilgileri alınamadı.');
-                }
+    // Yeni Ürün Ekle butonu için event listener
+    $('.add-new-product').on('click', function() {
+        showNewProductPopup();
+    });
+
+    function showNewProductPopup() {
+        var popupHtml = `
+            <div id="new-product-popup" class="stock-popup">
+                <div class="popup-content">
+                    <h3 class="popup-title">Yeni Ürün Ekle</h3>
+                    <form id="new-product-form">
+                        <div class="form-group">
+                            <label>Ürün Adı:</label>
+                            <input type="text" id="product-name" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Ürün Kodu (SKU):</label>
+                            <input type="text" id="product-sku">
+                        </div>
+                        <div class="form-group">
+                            <label>Başlangıç Stok Miktarı:</label>
+                            <input type="number" id="product-stock" min="0" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label>Fiyat:</label>
+                            <input type="number" id="product-price" min="0" step="0.01" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Ürün Açıklaması:</label>
+                            <textarea id="product-description"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Ürün Görseli:</label>
+                            <div class="image-upload-container">
+                                <img id="product-image-preview" src="" style="display: none;">
+                                <input type="hidden" id="product-image-id">
+                                <button type="button" class="button select-image">Görsel Seç</button>
+                                <button type="button" class="button remove-image" style="display: none;">Görseli Kaldır</button>
+                            </div>
+                        </div>
+                        <div class="button-group">
+                            <button type="submit" class="button save-new-product">Kaydet</button>
+                            <button type="button" class="button cancel-new-product">İptal</button>
+                        </div>
+                    </form>
+                </div>
+            </div>`;
+
+        $('body').append(popupHtml);
+        $('#new-product-popup').show();
+
+        // Form submit handler
+        $('#new-product-form').on('submit', function(e) {
+            e.preventDefault();
+            
+            var name = $('#product-name').val().trim();
+            var sku = $('#product-sku').val().trim();
+            var stock = parseInt($('#product-stock').val()) || 0;
+            var price = parseFloat($('#product-price').val()) || 0;
+            var description = $('#product-description').val().trim();
+            var imageId = $('#product-image-id').val();
+
+            // Form validasyonu
+            if (!name) {
+                alert('Lütfen ürün adını giriniz');
+                return;
             }
+
+            if (!price || price <= 0) {
+                alert('Lütfen geçerli bir fiyat giriniz');
+                return;
+            }
+
+            // AJAX isteği
+            $.ajax({
+                url: dokanStock.ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'add_new_product',
+                    security: dokanStock.security,
+                    product_data: {
+                        name: name,
+                        sku: sku,
+                        stock: stock,
+                        price: price,
+                        description: description,
+                        image_id: imageId || 0
+                    }
+                },
+                success: function(response) {
+                    console.log('Sunucu yanıtı:', response);
+                    if (response.success) {
+                        alert('Ürün başarıyla eklendi');
+                        location.reload();
+                    } else {
+                        alert('Hata: ' + (response.data || 'Bilinmeyen bir hata oluştu'));
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('AJAX hatası:', error);
+                    console.error('Durum:', status);
+                    console.error('Yanıt:', xhr.responseText);
+                    alert('Bir hata oluştu. Lütfen tekrar deneyin.');
+                }
+            });
+        });
+
+        // WordPress medya yükleyici
+        var mediaUploader;
+        $('.select-image').on('click', function(e) {
+            e.preventDefault();
+
+            if (mediaUploader) {
+                mediaUploader.open();
+                return;
+            }
+
+            mediaUploader = wp.media({
+                title: 'Ürün Görseli Seç',
+                button: {
+                    text: 'Görseli Kullan'
+                },
+                multiple: false,
+                library: {
+                    type: 'image'
+                }
+            });
+
+            mediaUploader.on('select', function() {
+                var attachment = mediaUploader.state().get('selection').first().toJSON();
+                $('#product-image-preview').attr('src', attachment.url).show();
+                $('#product-image-id').val(attachment.id);
+                $('.select-image').hide();
+                $('.remove-image').show();
+            });
+
+            mediaUploader.open();
+        });
+
+        // Görseli kaldır
+        $('.remove-image').on('click', function() {
+            $('#product-image-preview').attr('src', '').hide();
+            $('#product-image-id').val('');
+            $('.select-image').show();
+            $('.remove-image').hide();
+        });
+
+        // İptal butonu
+        $('.cancel-new-product').on('click', function() {
+            $('#new-product-popup').remove();
         });
     }
+
+    // Stok Gir butonu için event listener ekle
+    $('.set-stock-btn').on('click', function() {
+        var $row = $(this).closest('tr');
+        var productId = $(this).data('product-id');
+        var currentStock = parseInt($('#stock_' + productId).text());
+        
+        removeInlineForm();
+        
+        var formHtml = `
+            <tr class="inline-form-row">
+                <td colspan="7">
+                    <div class="inline-form">
+                        <div class="form-group">
+                            <label>Mevcut Stok: ${currentStock}</label>
+                            <label>Yeni Stok Miktarı:</label>
+                            <input type="number" class="quantity-input" min="0" value="${currentStock}">
+                        </div>
+                        <div class="form-group">
+                            <label>Not:</label>
+                            <input type="text" class="notes-input" placeholder="Stok güncelleme nedeni...">
+                        </div>
+                        <div class="button-group">
+                            <button class="button save-set-stock">Kaydet</button>
+                            <button class="button cancel-form">İptal</button>
+                        </div>
+                    </div>
+                </td>
+            </tr>`;
+        
+        $row.after(formHtml);
+        
+        // Kaydet butonu için event
+        $row.next().find('.save-set-stock').on('click', function() {
+            var newStock = parseInt($row.next().find('.quantity-input').val());
+            var notes = $row.next().find('.notes-input').val();
+            
+            if (newStock < 0) {
+                alert('Lütfen geçerli bir stok miktarı girin!');
+                return;
+            }
+            
+            $.ajax({
+                url: dokanStock.ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'set_stock',
+                    product_id: productId,
+                    new_stock: newStock,
+                    notes: notes,
+                    security: dokanStock.security
+                },
+                success: function(response) {
+                    if (response.success) {
+                        $('#stock_' + productId).text(response.data.new_stock);
+                        removeInlineForm();
+                        alert('Stok başarıyla güncellendi.');
+                        updateHistory(productId);
+                    } else {
+                        alert('Hata: ' + response.data);
+                    }
+                }
+            });
+        });
+        
+        $row.next().find('.cancel-form').on('click', removeInlineForm);
+    });
+
+    // Stok silme butonu için event listener ekle
+    $('.delete-stock-btn').on('click', function() {
+        var $row = $(this).closest('tr');
+        var productId = $(this).data('product-id');
+        var currentStock = parseInt($('#stock_' + productId).text());
+        
+        removeInlineForm();
+        
+        var formHtml = `
+            <tr class="inline-form-row">
+                <td colspan="7">
+                    <div class="inline-form">
+                        <div class="form-group">
+                            <label>Mevcut Stok: ${currentStock}</label>
+                            <label>Silinecek Miktar:</label>
+                            <input type="number" class="quantity-input" min="1" max="${currentStock}" value="1">
+                        </div>
+                        <div class="form-group">
+                            <label>Not:</label>
+                            <input type="text" class="notes-input" placeholder="Stok silme nedeni...">
+                        </div>
+                        <div class="button-group">
+                            <button class="button save-delete-stock">Stok Sil</button>
+                            <button class="button cancel-form">İptal</button>
+                        </div>
+                    </div>
+                </td>
+            </tr>`;
+        
+        $row.after(formHtml);
+        
+        // Kaydet butonu için event
+        $row.next().find('.save-delete-stock').on('click', function() {
+            var quantity = parseInt($row.next().find('.quantity-input').val());
+            var notes = $row.next().find('.notes-input').val();
+            
+            if (!quantity || quantity <= 0 || quantity > currentStock) {
+                alert('Lütfen geçerli bir miktar girin!');
+                return;
+            }
+            
+            if (confirm('Bu işlem stok miktarını azaltacaktır. Devam etmek istiyor musunuz?')) {
+                $.ajax({
+                    url: dokanStock.ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'delete_stock',
+                        product_id: productId,
+                        quantity: quantity,
+                        notes: notes,
+                        security: dokanStock.security
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            $('#stock_' + productId).text(response.data.new_stock);
+                            removeInlineForm();
+                            alert('Stok başarıyla silindi.');
+                            updateHistory(productId);
+                        } else {
+                            alert('Hata: ' + response.data);
+                        }
+                    }
+                });
+            }
+        });
+        
+        $row.next().find('.cancel-form').on('click', removeInlineForm);
+    });
 });
