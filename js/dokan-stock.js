@@ -1004,6 +1004,7 @@ jQuery(document).ready(function($) {
                             '</div>' +
                             '<div class="popup-body">' + popupContent + '</div>' +
                             '<div class="popup-footer">' +
+                            '<button class="button export-critical-excel">Excel\'e Aktar</button>' +
                             '<button class="button close-critical-popup">Kapat</button>' +
                             '</div>' +
                             '</div>' +
@@ -1275,4 +1276,115 @@ jQuery(document).ready(function($) {
         
         return year + '-' + month + '-' + day;
     }
+
+    // Kritik stok verileri için Excel indirme
+    $(document).on('click', '.export-critical-excel', function() {
+        $.ajax({
+            url: dokanStock.ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'export_critical_stocks_excel',
+                security: dokanStock.security
+            },
+            beforeSend: function() {
+                $(this).text('İndiriliyor...').prop('disabled', true);
+            },
+            success: function(response) {
+                $('.export-critical-excel').text('Excel\'e Aktar').prop('disabled', false);
+                
+                if (response.success) {
+                    // Base64 kodlu içeriği çöz
+                    var binary = atob(response.data.content);
+                    
+                    // Array buffer oluştur
+                    var array = new Uint8Array(binary.length);
+                    for (var i = 0; i < binary.length; i++) {
+                        array[i] = binary.charCodeAt(i);
+                    }
+                    
+                    // Blob oluştur
+                    var blob = new Blob([array], {type: 'text/csv;charset=utf-8'});
+                    
+                    // İndirme bağlantısı oluştur
+                    var link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = response.data.filename;
+                    link.style.display = 'none';
+                    
+                    // Bağlantıyı ekle ve tıkla
+                    document.body.appendChild(link);
+                    link.click();
+                    
+                    // Bağlantıyı kaldır
+                    setTimeout(function() {
+                        document.body.removeChild(link);
+                        URL.revokeObjectURL(link.href);
+                    }, 100);
+                } else {
+                    alert('Hata: ' + response.data);
+                }
+            },
+            error: function() {
+                $('.export-critical-excel').text('Excel\'e Aktar').prop('disabled', false);
+                alert('Excel dosyası oluşturulurken bir hata oluştu!');
+            }
+        });
+    });
+
+    // Satış analizi verileri için Excel indirme
+    $(document).on('click', '.export-sales-excel', function() {
+        var period = $('#analysis-period').val() || 'monthly';
+        
+        $.ajax({
+            url: dokanStock.ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'export_sales_analysis_excel',
+                period: period,
+                security: dokanStock.security
+            },
+            beforeSend: function() {
+                $(this).text('İndiriliyor...').prop('disabled', true);
+            },
+            success: function(response) {
+                $('.export-sales-excel').text('Excel\'e Aktar').prop('disabled', false);
+                
+                if (response.success) {
+                    // Base64 kodlu içeriği çöz
+                    var binary = atob(response.data.content);
+                    
+                    // Array buffer oluştur
+                    var array = new Uint8Array(binary.length);
+                    for (var i = 0; i < binary.length; i++) {
+                        array[i] = binary.charCodeAt(i);
+                    }
+                    
+                    // Blob oluştur
+                    var blob = new Blob([array], {type: 'text/csv;charset=utf-8'});
+                    
+                    // İndirme bağlantısı oluştur
+                    var link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = response.data.filename;
+                    link.style.display = 'none';
+                    
+                    // Bağlantıyı ekle ve tıkla
+                    document.body.appendChild(link);
+                    link.click();
+                    
+                    // Bağlantıyı kaldır
+                    setTimeout(function() {
+                        document.body.removeChild(link);
+                        URL.revokeObjectURL(link.href);
+                    }, 100);
+                } else {
+                    alert('Hata: ' + response.data);
+                }
+            },
+            error: function() {
+                $('.export-sales-excel').text('Excel\'e Aktar').prop('disabled', false);
+                alert('Excel dosyası oluşturulurken bir hata oluştu!');
+            }
+        });
+    });
 });

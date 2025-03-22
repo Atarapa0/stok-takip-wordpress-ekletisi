@@ -1389,3 +1389,24 @@ textarea:focus {
     transform: translateY(-2px) !important;
     box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15) !important;
 }
+
+.export-critical-excel, .export-sales-excel {
+    background-color: #27ae60 !important;
+    color: white !important;
+    font-weight: 600 !important;
+    margin-right: 10px !important;
+    border: none !important;
+    padding: 8px 15px !important;
+    transition: all 0.2s ease !important;
+}
+
+.export-critical-excel:hover, .export-sales-excel:hover {
+    background-color: #219653 !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15) !important;
+}
+
+.export-critical-excel:before, .export-sales-excel:before {
+    content: "📊";
+    margin-right: 6px;
+}

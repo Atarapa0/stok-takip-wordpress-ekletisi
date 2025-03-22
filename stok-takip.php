@@ -1711,10 +1711,11 @@ function sales_analysis_ajax() {
     $analysis_html .= '</tbody></table>';
     $analysis_html .= '</div>';
     
-    // Kapanış butonu
-    $analysis_html .= '<div class="analysis-actions">';
-    $analysis_html .= '<button class="button close-analysis">Kapat</button>';
-    $analysis_html .= '</div>';
+    // Analiz HTML'inde Excel butonu için kod düzenlemesi
+    $analysis_html .= '<div class="analysis-actions">
+        <button class="button export-sales-excel">Excel\'e Aktar</button>
+        <button class="button close-analysis">Kapat</button>
+    </div>';
     
     $analysis_html .= '</div>';
     
@@ -1772,3 +1773,308 @@ function sales_analysis_ajax() {
     wp_send_json_success($analysis_html);
 }
 add_action('wp_ajax_sales_analysis', 'sales_analysis_ajax');
+
+// Kritik stok verilerini Excel formatında indirme AJAX handler
+function export_critical_stocks_excel_ajax() {
+    check_ajax_referer('dokan-stock-security', 'security');
+    
+    if (!is_user_logged_in()) {
+        wp_send_json_error('Oturum açmanız gerekiyor');
+        return;
+    }
+    
+    $current_user = wp_get_current_user();
+    if (!in_array('seller', $current_user->roles) && 
+        !in_array('vendor', $current_user->roles) && 
+        !in_array('wcfm_vendor', $current_user->roles) && 
+        !in_array('dc_vendor', $current_user->roles)) {
+        wp_send_json_error('Bu işlem için yetkiniz yok');
+        return;
+    }
+    
+    $critical_products = check_critical_stock_levels();
+    
+    if (empty($critical_products)) {
+        wp_send_json_error('İndirilebilecek kritik stok verisi bulunamadı.');
+        return;
+    }
+    
+    // CSV verisi oluştur
+    $csv_data = array(
+        array('Ürün', 'Mevcut Stok', 'Kritik Seviye', 'Durum')
+    );
+    
+    foreach ($critical_products as $product) {
+        $stock_percentage = ($product['stock'] / $product['critical_level']) * 100;
+        
+        if ($stock_percentage <= 25) {
+            $status = 'Acil';
+        } elseif ($stock_percentage <= 50) {
+            $status = 'Uyarı';
+        } else {
+            $status = 'Dikkat';
+        }
+        
+        $csv_data[] = array(
+            $product['name'],
+            $product['stock'],
+            $product['critical_level'],
+            $status
+        );
+    }
+    
+    // CSV içeriğini oluştur
+    $csv_content = '';
+    foreach ($csv_data as $row) {
+        $csv_content .= implode(',', array_map(function($value) {
+            return '"' . str_replace('"', '""', $value) . '"';
+        }, $row)) . "\n";
+    }
+    
+    // CSV'yi indirilecek veri olarak gönder
+    $filename = 'kritik_stok_raporu_' . date('Y-m-d') . '.csv';
+    
+    // Base64 şifrelemesi yapalım
+    $base64_content = base64_encode($csv_content);
+    
+    wp_send_json_success(array(
+        'filename' => $filename,
+        'content' => $base64_content
+    ));
+}
+add_action('wp_ajax_export_critical_stocks_excel', 'export_critical_stocks_excel_ajax');
+
+// Satış analizi verilerini Excel formatında indirme AJAX handler
+function export_sales_analysis_excel_ajax() {
+    check_ajax_referer('dokan-stock-security', 'security');
+    
+    if (!is_user_logged_in()) {
+        wp_send_json_error('Oturum açmanız gerekiyor');
+        return;
+    }
+    
+    $vendor_id = get_current_user_id();
+    $period = isset($_POST['period']) ? sanitize_text_field($_POST['period']) : 'monthly';
+    
+    // Tarih aralığını belirle
+    switch ($period) {
+        case 'weekly':
+            $start_date = date('Y-m-d', strtotime('-7 days'));
+            $period_text = 'Son 7 gün';
+            break;
+        case 'monthly':
+            $start_date = date('Y-m-d', strtotime('-30 days'));
+            $period_text = 'Son 30 gün';
+            break;
+        case 'quarterly':
+            $start_date = date('Y-m-d', strtotime('-90 days'));
+            $period_text = 'Son 90 gün';
+            break;
+        case 'yearly':
+            $start_date = date('Y-m-d', strtotime('-365 days'));
+            $period_text = 'Son 365 gün';
+            break;
+        default:
+            $start_date = date('Y-m-d', strtotime('-30 days'));
+            $period_text = 'Son 30 gün';
+    }
+    
+    $end_date = date('Y-m-d');
+    
+    global $wpdb;
+    $movements_table = $wpdb->prefix . 'dokan_stock_movements';
+    
+    // Manuel satışlar (stok hareketlerinden)
+    $manual_sales = $wpdb->get_results($wpdb->prepare(
+        "SELECT m.product_id, p.post_title as product_name, ABS(SUM(m.quantity)) as quantity
+        FROM $movements_table m
+        JOIN {$wpdb->posts} p ON m.product_id = p.ID
+        WHERE m.vendor_id = %d 
+        AND m.movement_type = 'sale'
+        AND DATE(m.movement_date) BETWEEN %s AND %s
+        GROUP BY m.product_id
+        ORDER BY quantity DESC",
+        $vendor_id, $start_date, $end_date
+    ));
+    
+    // Online satışlar (WooCommerce'dan)
+    $args = array(
+        'post_type'      => 'product',
+        'posts_per_page' => -1,
+        'author'         => $vendor_id
+    );
+    
+    $products_query = new WP_Query($args);
+    $online_sales = array();
+    
+    if ($products_query->have_posts()) {
+        while ($products_query->have_posts()) {
+            $products_query->the_post();
+            $product = wc_get_product(get_the_ID());
+            $product_id = $product->get_id();
+            
+            // Belirli bir tarih aralığındaki WooCommerce siparişlerini kontrol et
+            $order_items = $wpdb->get_row($wpdb->prepare(
+                "SELECT SUM(oim.meta_value) as total_qty 
+                FROM {$wpdb->prefix}woocommerce_order_items oi
+                JOIN {$wpdb->prefix}woocommerce_order_itemmeta oim ON oi.order_item_id = oim.order_item_id
+                JOIN {$wpdb->prefix}woocommerce_order_itemmeta oim2 ON oi.order_item_id = oim2.order_item_id
+                JOIN {$wpdb->posts} p ON p.ID = oi.order_id
+                WHERE oim.meta_key = '_qty'
+                AND oim2.meta_key = '_product_id'
+                AND oim2.meta_value = %d
+                AND p.post_type = 'shop_order'
+                AND p.post_status IN ('wc-completed', 'wc-processing')
+                AND p.post_date BETWEEN %s AND %s",
+                $product_id, $start_date . ' 00:00:00', $end_date . ' 23:59:59'
+            ));
+            
+            $online_qty = $order_items ? floatval($order_items->total_qty) : 0;
+            
+            if ($online_qty > 0) {
+                $online_sales[] = array(
+                    'product_id' => $product_id,
+                    'product_name' => $product->get_name(),
+                    'quantity' => $online_qty
+                );
+            }
+        }
+    }
+    
+    wp_reset_postdata();
+    
+    // Toplam satışları hesapla
+    $total_sales = array();
+    
+    // Manuel satışları ekle
+    foreach ($manual_sales as $sale) {
+        $total_sales[$sale->product_id] = array(
+            'product_id' => $sale->product_id,
+            'product_name' => $sale->product_name,
+            'manual_sales' => $sale->quantity,
+            'online_sales' => 0,
+            'total_sales' => $sale->quantity
+        );
+    }
+    
+    // Online satışları ekle
+    foreach ($online_sales as $sale) {
+        if (isset($total_sales[$sale['product_id']])) {
+            $total_sales[$sale['product_id']]['online_sales'] = $sale['quantity'];
+            $total_sales[$sale['product_id']]['total_sales'] += $sale['quantity'];
+        } else {
+            $total_sales[$sale['product_id']] = array(
+                'product_id' => $sale['product_id'],
+                'product_name' => $sale['product_name'],
+                'manual_sales' => 0,
+                'online_sales' => $sale['quantity'],
+                'total_sales' => $sale['quantity']
+            );
+        }
+    }
+    
+    // Toplam satışlara göre sırala
+    usort($total_sales, function($a, $b) {
+        return $b['total_sales'] - $a['total_sales'];
+    });
+    
+    // En az 1 satışı olan ürünler
+    $sales_products = array_filter($total_sales, function($item) {
+        return $item['total_sales'] > 0;
+    });
+    
+    // En çok satan 10 ürün
+    $top_selling = array_slice($sales_products, 0, 10);
+    
+    // En az satan 10 ürün (satışı olanlar arasında)
+    $sales_count = count($sales_products);
+    $least_selling = ($sales_count > 10) ? 
+        array_slice($sales_products, -10) : 
+        array_slice($sales_products, 0, $sales_count);
+    
+    // CSV verisi oluştur - başlık ve açıklama
+    $csv_data = array(
+        array('Satış Analizi Raporu - ' . $period_text . ' - ' . date('d.m.Y'))
+    );
+    
+    // Boş satır ekle
+    $csv_data[] = array('');
+    
+    // En çok satan ürünler tablosu
+    $csv_data[] = array('EN ÇOK SATAN ÜRÜNLER');
+    $csv_data[] = array('Ürün', 'Toplam Satış', 'Online Satış', 'Manuel Satış');
+    
+    foreach ($top_selling as $item) {
+        $csv_data[] = array(
+            $item['product_name'],
+            $item['total_sales'],
+            $item['online_sales'],
+            $item['manual_sales']
+        );
+    }
+    
+    // Boş satır ekle
+    $csv_data[] = array('');
+    $csv_data[] = array('');
+    
+    // En az satan ürünler tablosu
+    $csv_data[] = array('EN AZ SATAN ÜRÜNLER');
+    $csv_data[] = array('Ürün', 'Toplam Satış', 'Online Satış', 'Manuel Satış');
+    
+    // Satış miktarına göre artan sıralama (en azdan en fazlaya)
+    usort($least_selling, function($a, $b) {
+        return $a['total_sales'] - $b['total_sales'];
+    });
+    
+    foreach ($least_selling as $item) {
+        $csv_data[] = array(
+            $item['product_name'],
+            $item['total_sales'],
+            $item['online_sales'],
+            $item['manual_sales']
+        );
+    }
+    
+    // Boş satır ekle
+    $csv_data[] = array('');
+    $csv_data[] = array('');
+    
+    // Tüm ürünlerin satış tablosu
+    $csv_data[] = array('TÜM ÜRÜNLER SATIŞI');
+    $csv_data[] = array('Ürün', 'Toplam Satış', 'Online Satış', 'Manuel Satış');
+    
+    // Satış miktarına göre azalan sıralama (en fazladan en aza)
+    usort($total_sales, function($a, $b) {
+        return $b['total_sales'] - $a['total_sales'];
+    });
+    
+    foreach ($total_sales as $item) {
+        $csv_data[] = array(
+            $item['product_name'],
+            $item['total_sales'],
+            $item['online_sales'],
+            $item['manual_sales']
+        );
+    }
+    
+    // CSV içeriğini oluştur
+    $csv_content = '';
+    foreach ($csv_data as $row) {
+        $csv_content .= implode(',', array_map(function($value) {
+            // Özel karakterleri escape et ve tırnak içine al
+            return '"' . str_replace('"', '""', $value) . '"';
+        }, $row)) . "\n";
+    }
+    
+    // CSV'yi indirilecek veri olarak gönder
+    $filename = 'satis_analizi_' . $period . '_' . date('Y-m-d') . '.csv';
+    
+    // Base64 şifrelemesi yapalım
+    $base64_content = base64_encode($csv_content);
+    
+    wp_send_json_success(array(
+        'filename' => $filename,
+        'content' => $base64_content
+    ));
+}
+add_action('wp_ajax_export_sales_analysis_excel', 'export_sales_analysis_excel_ajax');
