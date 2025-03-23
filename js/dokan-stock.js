@@ -333,64 +333,86 @@ jQuery(document).ready(function($) {
         // Select2 initialize
         $('.categories-select, .tags-select').select2({
             width: '100%',
-            placeholder: 'Seçiniz...',
+            placeholder: 'Seçiniz veya yeni ekleyin...',
             allowClear: true,
             closeOnSelect: false,
-            tags: true // Yeni etiket eklemeye izin ver
+            tags: true,
+            language: {
+                noResults: function() {
+                    return "Sonuç bulunamadı";
+                }
+            },
+            templateResult: formatResult,
+            templateSelection: formatSelection
         });
     });
+
+    // Select2 için özel format fonksiyonları
+    function formatResult(result) {
+        if (!result.id) return result.text;
+        return $('<span>').text(result.text);
+    }
+
+    function formatSelection(selection) {
+        if (!selection.id) return selection.text;
+        return $('<span>').text(selection.text);
+    }
 
     // Yeni ürün ekleme popup'ı için HTML
     function getNewProductFormHtml() {
         return `
-        <div id="new-product-popup" class="stock-popup">
-            <div class="popup-content">
+    <div id="new-product-popup" class="stock-popup">
+        <div class="popup-content">
+            <div class="popup-header">
                 <h3>Yeni Ürün Ekle</h3>
+                <button type="button" class="close-popup-btn cancel-product">×</button>
+            </div>
+            <div class="popup-body">
                 <form id="new-product-form">
                     <div class="form-group">
-                        <label>Ürün Adı:</label>
-                        <input type="text" name="name" required>
+                        <label for="product-name">Ürün Adı:</label>
+                        <input type="text" id="product-name" name="name" required placeholder="Ürün adını girin">
                     </div>
                     
                     <div class="form-group">
-                        <label>Ürün Kodu (SKU):</label>
-                        <input type="text" name="sku">
+                        <label for="product-sku">Ürün Kodu (SKU):</label>
+                        <input type="text" id="product-sku" name="sku" placeholder="Benzersiz ürün kodu">
                     </div>
                     
                     <div class="form-group">
-                        <label>Fiyat:</label>
-                        <input type="number" name="price" step="0.01" required>
+                        <label for="product-price">Fiyat (₺):</label>
+                        <input type="number" id="product-price" name="price" step="0.01" required placeholder="0.00">
                     </div>
                     
                     <div class="form-group">
-                        <label>Başlangıç Stok:</label>
-                        <input type="number" name="stock" required>
+                        <label for="product-stock">Başlangıç Stok:</label>
+                        <input type="number" id="product-stock" name="stock" required placeholder="0">
                     </div>
                     
                     <div class="taxonomy-container">
                         <div class="form-group">
-                            <label>Kategoriler:</label>
-                            <select name="categories[]" multiple class="categories-select">
+                            <label for="product-categories">Kategoriler:</label>
+                            <select id="product-categories" name="categories[]" multiple class="categories-select">
                                 <option value="">Yükleniyor...</option>
                             </select>
                         </div>
                         
                         <div class="form-group">
-                            <label>Etiketler:</label>
-                            <select name="tags[]" multiple class="tags-select">
+                            <label for="product-tags">Etiketler:</label>
+                            <select id="product-tags" name="tags[]" multiple class="tags-select">
                                 <option value="">Yükleniyor...</option>
                             </select>
                         </div>
                     </div>
                     
-                    <div class="form-group">
-                        <label>Kısa Açıklama:</label>
-                        <textarea name="short_description" rows="3"></textarea>
+                    <div class="form-group full-width">
+                        <label for="product-short-desc">Kısa Açıklama:</label>
+                        <textarea id="product-short-desc" name="short_description" rows="3" placeholder="Ürünün kısa açıklaması"></textarea>
                     </div>
                     
-                    <div class="form-group">
-                        <label>Detaylı Açıklama:</label>
-                        <textarea name="description" rows="5"></textarea>
+                    <div class="form-group full-width">
+                        <label for="product-desc">Detaylı Açıklama:</label>
+                        <textarea id="product-desc" name="description" rows="5" placeholder="Ürünün detaylı açıklaması"></textarea>
                     </div>
                     
                     <div class="form-group">
@@ -408,12 +430,13 @@ jQuery(document).ready(function($) {
                     </div>
                     
                     <div class="button-group">
-                        <button type="submit" class="button button-primary">Kaydet</button>
                         <button type="button" class="button cancel-product">İptal</button>
+                        <button type="submit" class="button button-primary">Ürünü Kaydet</button>
                     </div>
                 </form>
             </div>
-        </div>`;
+        </div>
+    </div>`;
     }
 
     // Kategori ve etiketleri yükle
@@ -454,8 +477,14 @@ jQuery(document).ready(function($) {
     // Görsel yükleme işleyicisi
     function handleImageUpload(button, previewDiv, inputField, multiple = false) {
         var frame = wp.media({
-            title: 'Görsel Seç',
-            multiple: multiple
+            title: multiple ? 'Görseller Seç' : 'Görsel Seç',
+            multiple: multiple,
+            library: {
+                type: 'image'
+            },
+            button: {
+                text: multiple ? 'Görselleri Ekle' : 'Görseli Ekle'
+            }
         });
 
         frame.on('select', function() {
@@ -465,20 +494,74 @@ jQuery(document).ready(function($) {
 
             selection.each(function(attachment) {
                 ids.push(attachment.id);
-                previewDiv.append(
+                
+                // Daha zarif bir görsel önizleme
+                var imageUrl = attachment.attributes.sizes.thumbnail ? 
+                    attachment.attributes.sizes.thumbnail.url : 
+                    attachment.attributes.url;
+                    
+                var imageElement = $('<div>', {
+                    class: 'image-item',
+                    style: 'position: relative; display: inline-block;'
+                }).append(
                     $('<img>', {
-                        src: attachment.attributes.sizes.thumbnail.url,
+                        src: imageUrl,
                         width: 80,
                         height: 80,
-                        style: 'margin: 5px;'
+                        style: 'border-radius: 6px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);'
                     })
                 );
+                
+                previewDiv.append(imageElement);
             });
 
             inputField.val(ids.join(','));
+            
+            // Görsel eklendiğini kullanıcıya bildir
+            var message = multiple ? 
+                ids.length + ' görsel başarıyla eklendi' : 
+                'Görsel başarıyla eklendi';
+                
+            // Toast mesajı göster
+            showToast(message);
         });
 
         frame.open();
+    }
+
+    // Toast mesajı gösterme fonksiyonu
+    function showToast(message) {
+        // Önceki toast'ları kaldır
+        $('.toast-message').remove();
+        
+        // Yeni toast oluştur
+        var toast = $('<div>', {
+            class: 'toast-message',
+            text: message,
+            css: {
+                position: 'fixed',
+                bottom: '20px',
+                right: '20px',
+                background: '#333',
+                color: 'white',
+                padding: '10px 20px',
+                borderRadius: '4px',
+                boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
+                zIndex: 9999,
+                opacity: 0
+            }
+        });
+        
+        // Toast'u ekle ve anima et
+        $('body').append(toast);
+        toast.animate({opacity: 1}, 300);
+        
+        // 3 saniye sonra kaybol
+        setTimeout(function() {
+            toast.animate({opacity: 0}, 300, function() {
+                toast.remove();
+            });
+        }, 3000);
     }
 
     $(document).on('click', '.upload-image', function() {

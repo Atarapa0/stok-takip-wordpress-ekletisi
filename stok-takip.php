@@ -250,7 +250,7 @@ function dokan_vendor_stock_tracking($atts) {
             <button class="button stock-add-btn" data-product-id="' . $product_id . '">Stok Ekle</button>
             <button class="button manual-sale-btn" data-product-id="' . $product_id . '">Manuel Satış</button>
             <button class="button show-history-btn" data-product-id="' . $product_id . '">Geçmiş</button>
-            <button class="button set-stock-btn" data-product-id="' . $product_id . '">Stok Ayarla</button>
+            <button class="button set-stock-btn" data-product-id="' . $product_id . '">Stok Güncelleme</button>
             <button class="button delete-stock-btn" data-product-id="' . $product_id . '">Stok Çıkar</button>
             <button class="button delete-product-btn" data-product-id="' . $product_id . '">Ürünü Sil</button>
         </td>';
@@ -1249,11 +1249,11 @@ function get_critical_stocks_ajax() {
 }
 add_action('wp_ajax_get_critical_stocks', 'get_critical_stocks_ajax');
 
-// Stok takip sayfasına kritik stok ayarı düğmesi ekleme
+// Stok takip sayfasına kritik stok güncelleme düğmesi ekleme
 function add_critical_stock_button($output, $product, $product_id) {
     $critical_level = get_post_meta($product_id, '_critical_stock_level', true) ?: 5;
     $button_html = sprintf(
-        '<button class="button critical-stock-btn" data-product-id="%d" data-critical-level="%d">Kritik Stok Ayarla</button>',
+        '<button class="button critical-stock-btn" data-product-id="%d" data-critical-level="%d">Kritik Stok Güncelle</button>',
         $product_id,
         $critical_level
     );

@@ -4,23 +4,29 @@
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0,0,0,0.5);
+    background: rgba(0,0,0,0.6);
+    z-index: 9999;
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 999998;
+    backdrop-filter: blur(3px);
 }
 
 .popup-content {
-    background: white;
-    padding: 20px;
-    border-radius: 5px;
-    max-width: 800px;
-    width: 90%;
-    max-height: 90vh;
-    overflow-y: auto;
-    position: relative;
-    z-index: 999998;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+    max-width: 90%;
+    max-height: 90%;
+    overflow: auto;
+    animation: popupFadeIn 0.3s ease-out;
+    display: flex;
+    flex-direction: column;
+}
+
+@keyframes popupFadeIn {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .form-group {
@@ -207,9 +213,179 @@
 }
 
 #new-product-popup .popup-content {
-    min-width: 700px;
-    width: 90%;
-    max-width: 900px;
+    min-width: 800px;
+    width: 80%;
+    max-width: 1200px;
+    padding: 0;
+}
+
+#new-product-popup .popup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 30px;
+    background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+    border-radius: 12px 12px 0 0;
+    border-bottom: 1px solid #eaeaea;
+}
+
+#new-product-popup .popup-header h3 {
+    color: white;
+    font-size: 24px;
+    margin: 0;
+    font-weight: 600;
+}
+
+#new-product-popup .popup-body {
+    padding: 30px;
+    flex: 1;
+    overflow: auto;
+}
+
+#new-product-popup form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 25px;
+}
+
+#new-product-popup .form-group {
+    margin-bottom: 0;
+}
+
+#new-product-popup .form-group.full-width {
+    grid-column: 1 / -1;
+}
+
+#new-product-popup input,
+#new-product-popup select,
+#new-product-popup textarea {
+    width: 100%;
+    padding: 12px 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 15px;
+    transition: all 0.2s;
+}
+
+#new-product-popup input:focus,
+#new-product-popup select:focus,
+#new-product-popup textarea:focus {
+    border-color: #2575fc;
+    box-shadow: 0 0 0 2px rgba(37, 117, 252, 0.1);
+    outline: none;
+}
+
+#new-product-popup label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    font-size: 15px;
+    color: #444;
+}
+
+#new-product-popup .taxonomy-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 25px;
+    grid-column: 1 / -1;
+}
+
+#new-product-popup .taxonomy-container .form-group {
+    margin: 0;
+}
+
+#new-product-popup .button {
+    padding: 12px 20px;
+    font-size: 15px;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+}
+
+#new-product-popup .button-primary {
+    background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+    color: white;
+}
+
+#new-product-popup .button-primary:hover {
+    background: linear-gradient(135deg, #5f10b5 0%, #1e68e0 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(37, 117, 252, 0.2);
+}
+
+#new-product-popup .cancel-product {
+    background: #f1f1f1;
+    color: #555;
+}
+
+#new-product-popup .cancel-product:hover {
+    background: #e5e5e5;
+}
+
+#new-product-popup .button-group {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: flex-end;
+    gap: 15px;
+    padding-top: 10px;
+    border-top: 1px solid #eee;
+    margin-top: 20px;
+}
+
+#new-product-popup .image-preview,
+#new-product-popup .gallery-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 10px;
+    min-height: 100px;
+    padding: 15px;
+    border: 1px dashed #ddd;
+    border-radius: 8px;
+    background: #f9f9f9;
+}
+
+#new-product-popup .image-preview img,
+#new-product-popup .gallery-preview img {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: 6px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+#new-product-popup .upload-image,
+#new-product-popup .upload-gallery {
+    background: #f1f1f1;
+    color: #333;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+#new-product-popup .upload-image:hover,
+#new-product-popup .upload-gallery:hover {
+    background: #e0e0e0;
+}
+
+/* Mobil uyumluluk */
+@media (max-width: 992px) {
+    #new-product-popup .popup-content {
+        min-width: 95%;
+        width: 95%;
+    }
+    
+    #new-product-popup form {
+        grid-template-columns: 1fr;
+    }
+    
+    #new-product-popup .taxonomy-container {
+        grid-template-columns: 1fr;
+    }
 }
 
 .image-upload-container {
@@ -334,36 +510,54 @@
 
 /* Seçim kutusunun kendisini genişletip alçaltalım */
 .select2-container--default .select2-selection--multiple {
-    min-height: 180px !important; /* Önceki değerin 3 katı: 60px * 3 */
-    max-height: 300px !important; /* Önceki değerin 3 katı: 100px * 3 */
-    padding: 5px !important;
-    border: 1px solid #ddd !important;
-    border-radius: 4px !important;
-    overflow-y: auto !important; /* Dikey kaydırma çubuğu ekledik */
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    min-height: 45px;
+    padding: 5px;
 }
 
-/* Seçilen öğeleri dikey olarak sıralıyoruz */
-.select2-container--default .select2-selection--multiple .select2-selection__rendered {
-    display: block !important; /* Flex yerine block kullanıyoruz */
-    padding: 3px !important;
+.select2-container--default.select2-container--focus .select2-selection--multiple {
+    border-color: #2575fc;
+    box-shadow: 0 0 0 2px rgba(37, 117, 252, 0.1);
 }
 
-/* Seçilen öğeleri daha belirgin yapıyoruz */
 .select2-container--default .select2-selection--multiple .select2-selection__choice {
-    display: block !important;
-    width: 95% !important;
-    margin: 5px auto !important;
-    padding: 8px 10px !important;
-    font-size: 14px !important;
-    background-color: #0073aa !important;
-    border: none !important;
-    color: white !important;
-    border-radius: 3px !important;
+    background-color: #2575fc;
+    border: none;
+    color: white;
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 14px;
+    margin: 5px;
 }
 
-/* Dropdown menüsünün yüksekliğini artırıyoruz */
-.select2-results__options {
-    max-height: 300px !important;
+.select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
+    color: rgba(255, 255, 255, 0.8);
+    margin-right: 5px;
+}
+
+.select2-container--default .select2-selection--multiple .select2-selection__choice__remove:hover {
+    color: white;
+}
+
+.select2-dropdown {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.select2-results__option {
+    padding: 10px;
+    font-size: 14px;
+}
+
+.select2-container--default .select2-results__option--highlighted[aria-selected] {
+    background-color: #2575fc;
+}
+
+.select2-search--dropdown .select2-search__field {
+    padding: 8px;
+    border-radius: 4px;
 }
 
 /* Popup içindeki popup-content genişliğini artır */
