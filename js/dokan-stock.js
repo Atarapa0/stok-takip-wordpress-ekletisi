@@ -964,7 +964,7 @@ jQuery(document).ready(function($) {
         }
     });
 
-    // Kritik stok kontrolü butonu
+    // Kritik stok kontrolü butonuna tıklama
     $('.check-critical-stocks').on('click', function() {
         $.ajax({
             url: dokanStock.ajaxurl,
@@ -980,7 +980,7 @@ jQuery(document).ready(function($) {
             success: function(response) {
                 $('#critical-loading').remove();
                 
-                if (response.success) {
+                if (response.success && response.data) {
                     try {
                         // Eski gösterimi kaldır
                         $('#critical-stock-container').hide();
@@ -993,6 +993,9 @@ jQuery(document).ready(function($) {
                         } else {
                             popupContent = '<div class="empty-critical-stocks"><div class="success-icon">✓</div><p>Kritik stok seviyesinde ürün bulunmamaktadır.</p></div>';
                         }
+                        
+                        // Önceki popup'ı kaldır
+                        $('#critical-stock-popup').remove();
                         
                         // Popup'ı oluştur ve göster
                         $('body').append(
@@ -1017,30 +1020,23 @@ jQuery(document).ready(function($) {
                         }
                     } catch (error) {
                         console.error('Kritik stok popup oluşturma hatası:', error);
-                        alert('Kritik stok kontrolü gösterilirken bir hata oluştu. Lütfen sayfayı yenileyip tekrar deneyin.');
+                        alert('Kritik stok kontrolü gösterilirken bir hata oluştu: ' + error.message);
                     }
                 } else {
-                    alert('Hata: ' + response.data);
+                    alert('Hata: ' + (response.data || 'Bilinmeyen bir hata oluştu'));
                 }
             },
             error: function(xhr, status, error) {
                 $('#critical-loading').remove();
-                console.error('AJAX hatası:', error);
-                alert('Kritik stok kontrolü sırasında bir hata oluştu!');
+                console.error('AJAX hatası:', xhr.responseText);
+                alert('Kritik stok kontrolü sırasında bir hata oluştu. Lütfen sayfayı yenileyip tekrar deneyin.');
             }
         });
     });
 
-    // Kritik stok popup'ını kapatma
-    $(document).on('click', '.close-critical-popup, .close-popup-btn', function() {
+    // Popup kapatma butonlarına tıklama
+    $(document).on('click', '.close-popup-btn, .close-critical-popup', function() {
         $('#critical-stock-popup').remove();
-    });
-
-    // Popup dışına tıklayınca kapatma
-    $(document).on('click', '#critical-stock-popup', function(e) {
-        if (e.target === this) {
-            $('#critical-stock-popup').remove();
-        }
     });
 
     // Sesli uyarı için fonksiyon
@@ -1506,5 +1502,68 @@ jQuery(document).ready(function($) {
                 checkStockUpdates(true); // force_check parametresi ile
             }
         }
+    });
+
+    // Geçmiş Excel indirme butonu
+    $(document).on('click', '.export-history-excel', function(e) {
+        e.preventDefault();
+        
+        var productId = $(this).data('product-id');
+        var startDate = $(this).closest('.history-filter').find('input[name="start_date"]').val();
+        var endDate = $(this).closest('.history-filter').find('input[name="end_date"]').val();
+        
+        $.ajax({
+            url: dokanStock.ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'export_stock_history_excel',
+                product_id: productId,
+                start_date: startDate,
+                end_date: endDate,
+                security: dokanStock.security
+            },
+            beforeSend: function() {
+                $('.export-history-excel').text('İndiriliyor...').prop('disabled', true);
+            },
+            success: function(response) {
+                $('.export-history-excel').text('Excel\'e Aktar').prop('disabled', false);
+                
+                if (response.success) {
+                    // Base64 kodlu içeriği çöz
+                    var binary = atob(response.data.content);
+                    
+                    // Array buffer oluştur
+                    var array = new Uint8Array(binary.length);
+                    for (var i = 0; i < binary.length; i++) {
+                        array[i] = binary.charCodeAt(i);
+                    }
+                    
+                    // Blob oluştur
+                    var blob = new Blob([array], {type: 'text/csv;charset=utf-8'});
+                    
+                    // İndirme bağlantısı oluştur
+                    var link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = response.data.filename;
+                    link.style.display = 'none';
+                    
+                    // Bağlantıyı ekle ve tıkla
+                    document.body.appendChild(link);
+                    link.click();
+                    
+                    // Bağlantıyı kaldır
+                    setTimeout(function() {
+                        document.body.removeChild(link);
+                        URL.revokeObjectURL(link.href);
+                    }, 100);
+                } else {
+                    alert('Hata: ' + response.data);
+                }
+            },
+            error: function() {
+                $('.export-history-excel').text('Excel\'e Aktar').prop('disabled', false);
+                alert('Excel dosyası oluşturulurken bir hata oluştu!');
+            }
+        });
     });
 });

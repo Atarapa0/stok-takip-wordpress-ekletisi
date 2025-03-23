@@ -412,54 +412,56 @@ add_action('wp_ajax_update_stock', 'update_stock_ajax');
 function get_stock_history_html($product_id, $vendor_id, $start_date = null, $end_date = null, $page = 1) {
     global $wpdb;
     $movements_table = $wpdb->prefix . 'dokan_stock_movements';
+    $output = '';
+
+    // Her sayfada gösterilecek kayıt sayısı
     $per_page = 10;
     $offset = ($page - 1) * $per_page;
 
+    // Sorgu için tarih filtresi hazırla
     $where_clause = "WHERE product_id = %d AND vendor_id = %d";
-    $params = array($product_id, $vendor_id);
+    $query_args = array($product_id, $vendor_id);
 
     if ($start_date && $end_date) {
-        $where_clause .= " AND DATE(movement_date) BETWEEN DATE(%s) AND DATE(%s)";
-        $params[] = $start_date;
-        $params[] = $end_date;
+        $where_clause .= " AND DATE(movement_date) BETWEEN %s AND %s";
+        $query_args[] = $start_date;
+        $query_args[] = $end_date;
     }
 
-    // Debug için
-    error_log('SQL Where Clause: ' . $where_clause);
-    error_log('Parameters: ' . print_r($params, true));
+    // Toplam kayıt sayısını bul
+    $total_query = "SELECT COUNT(*) FROM $movements_table $where_clause";
+    $total_items = $wpdb->get_var($wpdb->prepare($total_query, $query_args));
+    $total_pages = ceil($total_items / $per_page);
 
-    // Toplam kayıt sayısını al
-    $total_records = $wpdb->get_var($wpdb->prepare(
-        "SELECT COUNT(*) FROM $movements_table $where_clause",
-        $params
-    ));
-
-    // Hareket kayıtlarını al
+    // Stok hareketlerini sorgula
     $movements = $wpdb->get_results($wpdb->prepare(
-        "SELECT * FROM $movements_table 
-        $where_clause 
-        ORDER BY movement_date DESC
-        LIMIT %d OFFSET %d",
-        array_merge($params, array($per_page, $offset))
+        "SELECT * FROM $movements_table $where_clause ORDER BY movement_date DESC LIMIT %d OFFSET %d",
+        array_merge($query_args, array($per_page, $offset))
     ));
 
-    // Debug için
-    error_log('Total Records: ' . $total_records);
-    error_log('Movements Count: ' . count($movements));
-
-    if (empty($movements)) {
-        return '<p>Bu tarih aralığında hareket kaydı yok.</p>';
-    }
-
-    $output = '<div class="history-filter">
-        <input type="date" class="history-date-start" value="' . ($start_date ?: '') . '">
-        <span>-</span>
-        <input type="date" class="history-date-end" value="' . ($end_date ?: '') . '">
-        <button class="button filter-history">Filtrele</button>
-        <button class="button reset-filter">Filtreyi Temizle</button>
+    // Filtreleme alanı
+    $output .= '<div class="history-filter">
+        <form class="history-filter-form">
+            <input type="hidden" name="product_id" value="' . esc_attr($product_id) . '">
+            <div class="date-inputs">
+                <label>Başlangıç: <input type="date" name="start_date" value="' . esc_attr($start_date) . '"></label>
+                <label>Bitiş: <input type="date" name="end_date" value="' . esc_attr($end_date) . '"></label>
+            </div>
+            <div class="filter-actions">
+                <button type="submit" class="button apply-filter">Filtrele</button>
+                <button type="button" class="button clear-filter">Temizle</button>
+                <button type="button" class="button export-history-excel" data-product-id="' . esc_attr($product_id) . '">Excel\'e Aktar</button>
+            </div>
+        </form>
     </div>';
 
-    $output .= '<table class="widefat">
+    if (empty($movements)) {
+        $output .= '<p>Hareket bulunamadı.</p>';
+        return $output;
+    }
+
+    // Hareket tablosu
+    $output .= '<table class="history-table widefat">
         <thead>
             <tr>
                 <th>Tarih</th>
@@ -506,18 +508,12 @@ function get_stock_history_html($product_id, $vendor_id, $start_date = null, $en
 
     $output .= '</tbody></table>';
 
-    // Sayfalandırma
-    $total_pages = ceil($total_records / $per_page);
+    // Sayfalama
     if ($total_pages > 1) {
         $output .= '<div class="history-pagination">';
         for ($i = 1; $i <= $total_pages; $i++) {
-            $active_class = $i == $page ? 'active' : '';
-            $output .= sprintf(
-                '<button class="button pagination-btn %s" data-page="%d">%d</button>',
-                $active_class,
-                $i,
-                $i
-            );
+            $active_class = ($i == $page) ? 'active' : '';
+            $output .= '<span class="page-num ' . $active_class . '" data-page="' . $i . '">' . $i . '</span>';
         }
         $output .= '</div>';
     }
@@ -1149,7 +1145,24 @@ function check_critical_stock_levels() {
     return $critical_products;
 }
 
-// Kritik stok seviyesindeki ürünleri getiren AJAX handler
+// Debug log fonksiyonu
+function dokan_stock_debug_log($message, $data = null) {
+    if (defined('WP_DEBUG') && WP_DEBUG === true) {
+        $log_entry = '[Dokan Stock] ' . $message;
+        
+        if ($data !== null) {
+            if (is_array($data) || is_object($data)) {
+                $log_entry .= ' Data: ' . print_r($data, true);
+            } else {
+                $log_entry .= ' Data: ' . $data;
+            }
+        }
+        
+        error_log($log_entry);
+    }
+}
+
+// get_critical_stocks_ajax fonksiyonunda hata ayıklama ekleyelim
 function get_critical_stocks_ajax() {
     check_ajax_referer('dokan-stock-security', 'security');
     
@@ -1158,68 +1171,81 @@ function get_critical_stocks_ajax() {
         return;
     }
     
-    $critical_products = check_critical_stock_levels();
-    
-    $output = '';
-    if (!empty($critical_products)) {
-        $output .= '<div class="critical-stock-notification">';
-        $output .= '<h4>Kritik Stok Seviyesindeki Ürünler</h4>';
-        $output .= '<p>Aşağıdaki ürünlerin stok seviyesi kritik eşiğin altındadır.</p>';
-        $output .= '<table class="widefat">';
-        $output .= '<thead><tr>';
-        echo '<th>Ürün</th>';
-        echo '<th>Mevcut Stok</th>';
-        echo '<th>Kritik Seviye</th>';
-        echo '<th>Durum</th>';
-        echo '<th>İşlem</th>';
-        echo '</tr></thead>';
-        $output .= '<tbody>';
+    try {
+        $vendor_id = get_current_user_id();
         
-        foreach ($critical_products as $product) {
-            // Kritik seviye sınıfı belirleme
-            $critical_class = '';
-            $critical_text = '';
+        // Log kaydı ekle
+        dokan_stock_debug_log('Kritik stok kontrolü başlatıldı. Satıcı ID: ' . $vendor_id);
+        
+        // Kritik stoktaki ürünleri al
+        $critical_products = check_critical_stock_levels();
+        
+        // Çıktı oluştur
+        if (!empty($critical_products)) {
+            dokan_stock_debug_log('Kritik stok ürünleri bulundu. Adet: ' . count($critical_products));
             
-            $stock_percentage = ($product['stock'] / $product['critical_level']) * 100;
+            $output = '<div class="critical-stock-notification">';
+            $output .= '<h4>Kritik Stok Seviyesindeki Ürünler</h4>';
+            $output .= '<table class="critical-stock-table">';
+            $output .= '<thead><tr>
+                <th>Ürün</th>
+                <th>Mevcut Stok</th>
+                <th>Kritik Seviye</th>
+                <th>Durum</th>
+                <th>İşlem</th>
+            </tr></thead>';
+            $output .= '<tbody>';
             
-            if ($stock_percentage <= 25) {
-                $critical_class = 'critical-level-severe';
-                $critical_text = 'Acil';
-            } elseif ($stock_percentage <= 50) {
-                $critical_class = 'critical-level-warning';
-                $critical_text = 'Uyarı';
-            } else {
-                $critical_class = 'critical-level-attention';
-                $critical_text = 'Dikkat';
+            foreach ($critical_products as $product) {
+                // Kritik seviye sınıfı belirleme
+                $critical_class = '';
+                $critical_text = '';
+                
+                $stock_percentage = ($product['stock'] / $product['critical_level']) * 100;
+                
+                if ($stock_percentage <= 25) {
+                    $critical_class = 'critical-level-severe';
+                    $critical_text = 'Acil';
+                } elseif ($stock_percentage <= 50) {
+                    $critical_class = 'critical-level-warning';
+                    $critical_text = 'Uyarı';
+                } else {
+                    $critical_class = 'critical-level-attention';
+                    $critical_text = 'Dikkat';
+                }
+                
+                $output .= sprintf(
+                    '<tr class="critical-stock-row">
+                        <td>%s</td>
+                        <td>%d</td>
+                        <td>%d</td>
+                        <td><span class="critical-level-indicator %s">%s</span></td>
+                        <td>
+                            <button class="button set-critical-level-btn" data-product-id="%d" data-critical-level="%d">Kritik Seviye Ayarla</button>
+                        </td>
+                    </tr>',
+                    esc_html($product['name']),
+                    esc_html($product['stock']),
+                    esc_html($product['critical_level']),
+                    $critical_class,
+                    $critical_text,
+                    $product['id'],
+                    $product['critical_level']
+                );
             }
             
-            $output .= sprintf(
-                '<tr class="critical-stock-row">
-                    <td>%s</td>
-                    <td>%d</td>
-                    <td>%d</td>
-                    <td><span class="critical-level-indicator %s">%s</span></td>
-                    <td>
-                        <button class="button set-critical-level-btn" data-product-id="%d" data-critical-level="%d">Kritik Seviye Ayarla</button>
-                    </td>
-                </tr>',
-                esc_html($product['name']),
-                esc_html($product['stock']),
-                esc_html($product['critical_level']),
-                $critical_class,
-                $critical_text,
-                $product['id'],
-                $product['critical_level']
-            );
+            $output .= '</tbody></table>';
+            $output .= '</div>';
+        } else {
+            dokan_stock_debug_log('Kritik stok ürünü bulunamadı.');
+            $output = '<div class="empty-critical-stocks"><div class="success-icon">✓</div><p>Kritik stok seviyesinde ürün bulunmamaktadır.</p></div>';
         }
         
-        $output .= '</tbody></table>';
-        $output .= '</div>';
-    } else {
-        $output = '';
+        wp_send_json_success($output);
+    } catch (Exception $e) {
+        dokan_stock_debug_log('Kritik stok kontrolü hatası: ' . $e->getMessage());
+        wp_send_json_error('İşlem sırasında bir hata oluştu: ' . $e->getMessage());
     }
-    
-    wp_send_json_success($output);
 }
 add_action('wp_ajax_get_critical_stocks', 'get_critical_stocks_ajax');
 
@@ -2412,3 +2438,127 @@ function listen_order_events() {
     exit;
 }
 add_action('wp_ajax_listen_order_events', 'listen_order_events');
+
+// Stok geçmişi için Excel çıktısı alma AJAX handler
+function export_stock_history_excel_ajax() {
+    check_ajax_referer('dokan-stock-security', 'security');
+    
+    if (!is_user_logged_in()) {
+        wp_send_json_error('Oturum açmanız gerekiyor');
+        return;
+    }
+    
+    $product_id = isset($_POST['product_id']) ? intval($_POST['product_id']) : 0;
+    $start_date = isset($_POST['start_date']) ? sanitize_text_field($_POST['start_date']) : null;
+    $end_date = isset($_POST['end_date']) ? sanitize_text_field($_POST['end_date']) : null;
+    $vendor_id = get_current_user_id();
+    
+    if (!$product_id) {
+        wp_send_json_error('Ürün ID\'si gereklidir');
+        return;
+    }
+    
+    // Ürün kontrolü
+    $product = wc_get_product($product_id);
+    if (!$product) {
+        wp_send_json_error('Ürün bulunamadı');
+        return;
+    }
+    
+    // Ürün sahibi kontrolü
+    if (get_post_field('post_author', $product_id) != $vendor_id) {
+        wp_send_json_error('Bu ürün için yetkiniz yok');
+        return;
+    }
+    
+    global $wpdb;
+    $movements_table = $wpdb->prefix . 'dokan_stock_movements';
+    
+    // Tarih filtresi varsa SQL sorgusuna ekle
+    $where_clause = "WHERE product_id = %d AND vendor_id = %d";
+    $query_args = array($product_id, $vendor_id);
+    
+    if ($start_date && $end_date) {
+        $where_clause .= " AND DATE(movement_date) BETWEEN %s AND %s";
+        $query_args[] = $start_date;
+        $query_args[] = $end_date;
+    }
+    
+    // Stok hareketlerini sorgula
+    $movements = $wpdb->get_results($wpdb->prepare(
+        "SELECT * FROM $movements_table $where_clause ORDER BY movement_date DESC",
+        $query_args
+    ));
+    
+    if (empty($movements)) {
+        wp_send_json_error('Bu ürün için hareket bulunamadı');
+        return;
+    }
+    
+    // Ürün adını al
+    $product_name = $product->get_name();
+    
+    // Excel için başlık satırı oluştur
+    $csv_data = array(
+        array(sprintf('%s - Stok Hareket Geçmişi', $product_name))
+    );
+    
+    // Filtre açıklaması ekle
+    if ($start_date && $end_date) {
+        $csv_data[] = array(sprintf('Filtre: %s - %s', $start_date, $end_date));
+    }
+    
+    // Boş satır
+    $csv_data[] = array('');
+    
+    // Tablo başlıkları
+    $csv_data[] = array('Tarih', 'İşlem', 'Miktar', 'Stok Durumu', 'Not');
+    
+    // Stok hareketlerini ekle
+    foreach ($movements as $movement) {
+        $type = match($movement->movement_type) {
+            'add' => 'Stok Ekleme',
+            'sale' => 'Manuel Satış',
+            'online_sale' => 'Online Satış',
+            'delete' => 'Stok Silme',
+            'set' => 'Stok Güncelleme',
+            default => 'Diğer'
+        };
+        
+        $quantity = abs($movement->quantity);
+        $date = wp_date('d.m.Y H:i', strtotime($movement->movement_date));
+        
+        $csv_data[] = array(
+            $date,
+            $type,
+            $quantity,
+            $movement->current_stock,
+            $movement->notes
+        );
+    }
+    
+    // CSV içeriğini oluştur
+    $csv_content = '';
+    foreach ($csv_data as $row) {
+        $csv_content .= implode(',', array_map(function($value) {
+            return '"' . str_replace('"', '""', $value) . '"';
+        }, $row)) . "\n";
+    }
+    
+    // Dosya adını oluştur
+    $filename = sprintf('urun_gecmis_%s_%s.csv', $product_id, date('Y-m-d'));
+    
+    // Filtreli versiyonsa dosya adına tarih aralığını ekle
+    if ($start_date && $end_date) {
+        $filename = sprintf('urun_gecmis_%s_%s_%s.csv', $product_id, $start_date, $end_date);
+    }
+    
+    // Base64 şifrelemesi yapalım
+    $base64_content = base64_encode($csv_content);
+    
+    wp_send_json_success(array(
+        'filename' => $filename,
+        'content' => $base64_content
+    ));
+}
+add_action('wp_ajax_export_stock_history_excel', 'export_stock_history_excel_ajax');
