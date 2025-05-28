@@ -64,15 +64,12 @@ git clone https://github.com/[kullanıcı-adı]/dokan-stok-takip.git
 4. Branch'inizi push edin (`git push origin feature/AmazingFeature`)
 5. Pull Request oluşturun
 
-## 📝 Lisans
-
-Bu proje MIT lisansı altında lisanslanmıştır. Detaylar için [LICENSE](LICENSE) dosyasına bakınız.
 
 ## 👤 Geliştirici
 
 **Furkan Erdoğan**
 
-* Github: [@furkanerdogan](https://github.com/furkanerdogan)
+* Github: [@furkanerdogan](https://github.com/Atarapa0/)
 
 ## 🌟 Destek
 
